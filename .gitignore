@@ -1,0 +1,41 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Next.js
+.next/
+out/
+.vercel/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+turbo.log
+
+# IDE / Editor configs
+.idea/
+*.swp
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# Temporary uploads / cache
+tmp/
+.cache/
