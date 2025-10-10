@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 
 import { createPrediction, waitForPrediction } from "@/lib/replicate"
+import { buildWatermarkedPreviewUrl } from "@/lib/cloudinary"
 
 const replicateModelVersion = process.env.REPLICATE_MODEL_VERSION
 const replicateEnabled = process.env.REPLICATE_ENABLED === "true"
@@ -34,7 +35,10 @@ export async function POST(request: Request) {
 
   const payload = await request.json()
 
-  const { image, styleType, gender, ageGroup, skinTone, aspectRatio } = payload ?? {}
+  const { image, styleType, gender, ageGroup, skinTone, aspectRatio, isFreePreview } = payload ?? {}
+
+  const isFreeUser = Boolean(isFreePreview)
+  const numOutputs = isFreeUser ? 1 : 2
 
   if (
     typeof image !== "string" ||
@@ -59,9 +63,10 @@ export async function POST(request: Request) {
       skinTone,
       aspectRatio,
       model: buildModelVariant(gender, ageGroup),
+      numOutputs,
     })
 
-    const result = await waitForPrediction(prediction.id)
+    const result = await waitForPrediction(prediction.id, { expectedOutputs: numOutputs })
 
     if (result.status !== "succeeded") {
       console.error("Replicate prediction failed", result)
@@ -75,20 +80,33 @@ export async function POST(request: Request) {
       )
     }
 
-    const output = Array.isArray(result.output)
-      ? result.output[result.output.length - 1]
-      : result.output
+    const rawOutputs = Array.isArray(result.output)
+      ? result.output
+      : typeof result.output === "string"
+        ? [result.output]
+        : []
 
-    if (typeof output !== "string") {
+    if (!Array.isArray(rawOutputs) || rawOutputs.length === 0) {
       return NextResponse.json(
         { error: "Unexpected prediction output format." },
         { status: 500 },
       )
     }
 
+    const outputUrls = rawOutputs
+      .slice(0, numOutputs)
+      .map((output) => {
+        if (typeof output !== "string") {
+          throw new Error("Prediction output must be a URL string")
+        }
+        return isFreeUser ? buildWatermarkedPreviewUrl(output) : output
+      })
+
     return NextResponse.json({
-      outputUrl: output,
+      outputUrls,
+      outputUrl: outputUrls[0],
       predictionId: result.id,
+      mode: isFreeUser ? "preview" : "hd",
     })
   } catch (error) {
     console.error("Failed to generate prediction", error)

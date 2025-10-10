@@ -33,7 +33,8 @@ export interface GenerationSettings {
 interface ModelGeneratorProps {
   onGenerate: (settings: GenerationSettings) => Promise<string | null | void> | string | null | void
   hasCredits: boolean
-  lastGeneratedUrl?: string | null
+  modeLabel: string
+  onUpgradeClick: () => void
 }
 
 const styleTypes = [
@@ -55,7 +56,8 @@ type GenerationFormState = Omit<GenerationSettings, 'imageUrl'>
 export function ModelGenerator({
   onGenerate,
   hasCredits,
-  lastGeneratedUrl,
+  modeLabel,
+  onUpgradeClick,
 }: ModelGeneratorProps) {
   const [formValues, setFormValues] = useState<GenerationFormState>({
     styleType: 'street',
@@ -68,7 +70,6 @@ export function ModelGenerator({
   const [isUploading, setIsUploading] = useState(false)
   const [cloudinaryAsset, setCloudinaryAsset] = useState<CloudinaryUploadResult | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(() => lastGeneratedUrl ?? null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const deleteTokenRef = useRef<string | null>(null)
   const deleteTimerRef = useRef<number | null>(null)
@@ -124,14 +125,6 @@ export function ModelGenerator({
       }
     }
   }, [])
-
-  useEffect(() => {
-    if (isGenerating) return
-    const normalizedUrl = lastGeneratedUrl ?? null
-    if (normalizedUrl !== generatedImageUrl) {
-      setGeneratedImageUrl(normalizedUrl)
-    }
-  }, [generatedImageUrl, isGenerating, lastGeneratedUrl])
 
   const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -199,8 +192,8 @@ export function ModelGenerator({
 
     if (!hasCredits) {
       toast({
-        title: 'No credits remaining',
-        description: 'Upgrade your plan to continue generating model shots.',
+        title: 'Out of credits',
+        description: 'You’ve used all your free previews. Upgrade to HD to continue.',
         variant: 'destructive',
       })
       return
@@ -227,14 +220,8 @@ export function ModelGenerator({
     const startedAt = Date.now()
     setIsGenerating(true)
 
-    let nextImageUrl: string | null = null
-
     try {
-      const result = await onGenerate({ ...formValues, imageUrl: cloudinaryAsset.secureUrl })
-
-      if (typeof result === 'string' && result.trim().length > 0) {
-        nextImageUrl = result.trim()
-      }
+      await onGenerate({ ...formValues, imageUrl: cloudinaryAsset.secureUrl })
     } catch (error) {
       console.error('Model generation failed', error)
     } finally {
@@ -251,20 +238,21 @@ export function ModelGenerator({
       }
 
       setIsGenerating(false)
-
-      if (nextImageUrl) {
-        setGeneratedImageUrl(nextImageUrl)
-      }
     }
   }
 
   return (
-    <Card className="gap-6 rounded-xl border-white/10 bg-white/[0.04] p-4 shadow-[0_0_25px_#00FF87]/10 backdrop-blur-xl sm:p-6 lg:p-8">
+    <Card className="relative gap-6 overflow-hidden rounded-2xl border-white/12 bg-[#111111]/60 p-5 shadow-[0_0_32px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-7 lg:p-9">
+      <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(159,255,87,0.55)] to-transparent" />
+
       <div className="flex items-center gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#00ff87]/10">
-          <Sparkles className="h-4 w-4 text-[#00ff87]" />
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-green-muted)]">
+          <Sparkles className="h-4 w-4 text-[var(--brand-green)]" />
         </span>
-        <h2 className="text-lg font-semibold tracking-[0.015em] text-neutral-50">Generate Model Shot</h2>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-neutral-500">ModelCast Studio</p>
+          <h2 className="text-lg font-semibold tracking-[0.18em] text-neutral-50">Generate Model Shot</h2>
+        </div>
       </div>
 
       <div className="space-y-5">
@@ -278,16 +266,19 @@ export function ModelGenerator({
                 fileInputRef.current?.click()
               }
             }}
-            className={`relative flex ${isUploading ? 'cursor-progress opacity-80' : 'cursor-pointer'} flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center transition-colors ${
+            className={`relative flex ${isUploading ? 'cursor-progress opacity-80' : 'cursor-pointer'} flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-colors sm:p-7 ${
               previewUrl
-                ? 'border-[#00ff87]/60 bg-[#00ff87]/8 shadow-[0_0_25px_#00FF87]/10'
-                : 'border-white/12 bg-white/[0.03] hover:border-white/25'
+                ? 'border-[var(--brand-green)]/55 bg-[var(--brand-green-muted)] shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                : 'border-white/12 bg-white/[0.025] hover:border-white/25 hover:bg-white/[0.05]'
             }`}
           >
+            {!previewUrl && !isUploading ? (
+              <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/[0.04] bg-[radial-gradient(circle_at_20%_20%,rgba(159,255,87,0.08),transparent_55%),radial-gradient(circle_at_80%_30%,rgba(159,255,87,0.05),transparent_60%),linear-gradient(135deg,rgba(255,255,255,0.05)_0%,rgba(15,15,15,0.55)_90%)]" aria-hidden />
+            ) : null}
             {isUploading ? (
               <div className="flex flex-col items-center gap-3 text-neutral-300">
-                <Loader2 className="h-6 w-6 animate-spin text-neutral-200" />
-                <p className="text-sm text-neutral-300">Uploading to secure storage…</p>
+                <Loader2 className="h-6 w-6 animate-spin text-[var(--brand-green)]" />
+                <p className="text-sm text-neutral-200">Uploading to secure storage…</p>
               </div>
             ) : previewUrl ? (
               <div className="relative">
@@ -295,7 +286,7 @@ export function ModelGenerator({
                 <img
                   src={previewUrl}
                   alt="Product preview"
-                  className="max-h-40 w-auto rounded-lg object-cover shadow-[0_0_25px_#00FF87]/10"
+                  className="max-h-44 w-auto rounded-xl object-cover shadow-[0_0_20px_rgba(159,255,87,0.16)]"
                 />
                 <button
                   type="button"
@@ -309,12 +300,15 @@ export function ModelGenerator({
                 </button>
               </div>
             ) : (
-              <>
-                <Upload className="h-8 w-8 text-neutral-400" />
-                <p className="text-base text-neutral-200">
-                  Click or drag to upload
-                </p>
-              </>
+              <div className="relative z-10 flex flex-col items-center gap-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-black/30 backdrop-blur">
+                  <Upload className="h-7 w-7 text-neutral-300" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base font-medium text-neutral-100">Click or drag to upload</p>
+                  <p className="text-sm text-neutral-400">Supports PNG, JPG, WEBP up to 10MB.</p>
+                </div>
+              </div>
             )}
             <input
               ref={fileInputRef}
@@ -341,8 +335,8 @@ export function ModelGenerator({
                 htmlFor={style.id}
                 className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-4 text-base text-neutral-200 transition ${
                   formValues.styleType === style.id
-                    ? 'border-[#00ff87]/80 bg-[#00ff87]/12 text-neutral-50 shadow-[0_0_25px_#00FF87]/10'
-                    : 'border-white/12 bg-white/[0.03] hover:border-white/20 hover:text-neutral-50'
+                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                    : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
                 }`}
               >
                 <RadioGroupItem value={style.id} id={style.id} className="sr-only" />
@@ -368,8 +362,8 @@ export function ModelGenerator({
                 htmlFor={gender}
                 className={`flex cursor-pointer items-center justify-center rounded-xl border p-4 text-base capitalize text-neutral-200 transition ${
                   formValues.gender === gender
-                    ? 'border-[#00ff87]/80 bg-[#00ff87]/12 text-neutral-50 shadow-[0_0_25px_#00FF87]/10'
-                    : 'border-white/12 bg-white/[0.03] hover:border-white/20 hover:text-neutral-50'
+                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                    : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
                 }`}
               >
                 <RadioGroupItem value={gender} id={gender} className="sr-only" />
@@ -394,8 +388,8 @@ export function ModelGenerator({
                 htmlFor={age}
                 className={`flex cursor-pointer items-center justify-center rounded-xl border p-3 text-sm font-medium uppercase tracking-wide text-neutral-300 transition ${
                   formValues.ageGroup === age
-                    ? 'border-[#00ff87]/80 bg-[#00ff87]/12 text-neutral-50 shadow-[0_0_25px_#00FF87]/10'
-                    : 'border-white/12 bg-white/[0.03] hover:border-white/20 hover:text-neutral-50'
+                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                    : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
                 }`}
               >
                 <RadioGroupItem value={age} id={age} className="sr-only" />
@@ -417,8 +411,8 @@ export function ModelGenerator({
                 }
                 className={`h-12 rounded-xl border transition hover:scale-[1.02] ${
                   formValues.skinTone === tone.id
-                    ? 'border-[#00ff87]/80 shadow-[0_0_25px_#00FF87]/10'
-                    : 'border-white/15'
+                    ? 'border-transparent shadow-[0_0_18px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                    : 'border-white/15 hover:border-white/25'
                 }`}
                 style={{ backgroundColor: tone.color }}
                 aria-label={tone.id}
@@ -435,7 +429,7 @@ export function ModelGenerator({
               setFormValues((current) => ({ ...current, aspectRatio: value }))
             }
           >
-            <SelectTrigger className="border-white/12 bg-white/[0.03] text-neutral-200 hover:border-white/20">
+            <SelectTrigger className="border-white/12 bg-white/[0.025] text-neutral-200 transition hover:border-white/25 hover:bg-white/[0.05]">
               <SelectValue placeholder="Select an aspect ratio" />
             </SelectTrigger>
             <SelectContent>
@@ -452,7 +446,7 @@ export function ModelGenerator({
             type="button"
             onClick={handleGenerate}
             disabled={isGenerating || isUploading || !hasCredits || !cloudinaryAsset?.secureUrl}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#00ff87] to-[#a6ff00] py-5 text-base font-semibold text-black shadow-[0_0_20px_#00FF87]/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_20px_#00FF87]/30 focus-visible:shadow-[0_0_22px_#00FF87]/35 disabled:translate-y-0 disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-green)] to-[var(--brand-green-hover)] py-5 text-base font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_28px_rgba(159,255,87,0.35)] focus-visible:shadow-[0_0_30px_rgba(159,255,87,0.4)] disabled:translate-y-0 disabled:opacity-60"
           >
             {isGenerating ? (
               <>
@@ -466,46 +460,31 @@ export function ModelGenerator({
               </>
             )}
           </Button>
+          <p className="mt-3 text-center text-xs font-medium uppercase tracking-[0.18em] text-[rgba(159,255,87,0.72)]">
+            {modeLabel}
+          </p>
         </div>
 
-        <div className="space-y-2.5">
-          <Label className="text-sm font-medium text-neutral-400">Latest Model Shot</Label>
-          <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-white/12 bg-white/[0.03] shadow-[0_0_25px_#00FF87]/10">
-            {generatedImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={generatedImageUrl}
-                alt="Latest generated model shot"
-                className={`aspect-[3/4] w-full object-cover transition duration-500 ${
-                  isGenerating ? 'scale-105 blur-sm brightness-90' : ''
-                }`}
-              />
-            ) : (
-              <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 text-center text-neutral-400">
-                <Sparkles className="h-6 w-6 text-[#00ff87]" />
-                <p className="text-sm text-neutral-300">Your next AI model shot will appear here.</p>
-              </div>
-            )}
-
-            {isGenerating && (
-              <>
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 opacity-80"
-                  style={{
-                    animation: 'shimmer 1.5s linear infinite',
-                    backgroundSize: '200% 100%',
-                    backgroundImage:
-                      'linear-gradient(110deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.18) 45%, rgba(255,255,255,0.05) 100%)',
-                  }}
-                />
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/40 backdrop-blur-sm">
-                  <Loader2 className="h-6 w-6 animate-spin text-[#00ff87]" />
-                  <span className="text-sm font-medium text-neutral-100">Generating…</span>
-                </div>
-              </>
-            )}
-          </div>
+        <div className="space-y-2">
+          <p className="text-xs text-neutral-400">
+            {modeLabel.startsWith('Preview')
+              ? 'Preview mode delivers one watermarked image and uses 1 credit ($1).'
+              : 'HD mode delivers two high-res images and uses 1 credit ($1).'}
+          </p>
+          {!hasCredits ? (
+            <div className="rounded-2xl border border-white/12 bg-gradient-to-br from-white/[0.03] to-black/60 px-5 py-4 text-sm text-neutral-100 shadow-[0_0_22px_rgba(0,0,0,0.35)]">
+              <p className="font-medium text-neutral-200">You’ve used all your free previews.</p>
+              <p className="mt-1 text-xs text-neutral-400">Unlock HD mode to keep generating fresh looks.</p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 w-full justify-center rounded-lg border-[var(--brand-green)]/65 bg-black/60 text-sm font-semibold text-[var(--brand-green)] transition hover:-translate-y-0.5 hover:border-[var(--brand-green)] hover:text-[var(--brand-green)]"
+                onClick={onUpgradeClick}
+              >
+                Buy another credit
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </Card>

@@ -1,64 +1,72 @@
 'use client'
 
 import Link from 'next/link'
-import { LogOut, Loader2 } from 'lucide-react'
 
 import { Logo } from '@/components/logo'
-import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface DashboardNavProps {
   credits: number
-  onSignOut: () => Promise<void>
-  isSigningOut?: boolean
+  maxCredits: number
+  onProfileClick: () => void
 }
 
 export function DashboardNav({
   credits,
-  onSignOut,
-  isSigningOut = false,
+  maxCredits,
+  onProfileClick,
 }: DashboardNavProps) {
-  const handleLogout = async () => {
-    await onSignOut()
-  }
-
   return (
-    <nav className="sticky top-0 z-40 border-b border-white/10 bg-black/60 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-start justify-between gap-4 px-5 py-4 sm:h-20 sm:flex-row sm:items-center sm:gap-6 sm:px-8 sm:py-0">
+    <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0b]/90 backdrop-blur-md">
+      <div className="mx-auto flex w-full max-w-screen-xl flex-col items-start justify-between gap-4 px-6 py-4 sm:h-20 sm:flex-row sm:items-center sm:gap-6">
         <Link href="/" className="flex items-center gap-3 text-neutral-50">
           <Logo className="h-10 w-10" sizes="(max-width: 768px) 2.5rem, 2.5rem" />
           <span className="text-lg font-semibold tracking-[0.035em]">ModelCast</span>
         </Link>
 
         <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:flex-nowrap sm:gap-5">
-          <div className="flex flex-shrink-0 items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-3 py-1.5 text-xs tracking-[0.02em] text-neutral-300 backdrop-blur sm:px-4 sm:py-2 sm:text-sm md:text-base">
-            <span
-              className={`h-2 w-2 rounded-full ${credits > 0 ? 'bg-[#00ff87]' : 'bg-yellow-400'}`}
-            />
-            <div className="flex items-baseline gap-1 font-medium">
-              <span className="text-neutral-400">Credits</span>
-              <span className="font-semibold text-[#6bffaf]">{credits}</span>
-            </div>
-          </div>
-          <Button
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="flex flex-shrink-0 items-center gap-3 rounded-full border border-white/25 bg-white/[0.04] px-3 py-1.5 text-left text-xs tracking-[0.02em] text-neutral-200 backdrop-blur transition-colors hover:border-white/40 hover:text-neutral-50 sm:px-4 sm:py-2 sm:text-sm md:text-base"
+                  aria-label="Available credits"
+                >
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${credits > 0 ? 'bg-[var(--brand-green)]' : 'bg-yellow-400'}`}
+                  />
+                  <div className="flex flex-col items-center leading-tight text-center">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--brand-green)] leading-none">
+                      Credits
+                    </span>
+                    <span className="text-[11px] font-medium text-neutral-200 leading-none">
+                      {credits} / {maxCredits}
+                    </span>
+                  </div>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-4 py-3 text-[var(--brand-green)]">
+                <div className="space-y-1 text-xs">
+                  <p>Each HD render costs 1 credit.</p>
+                  <p>You have {credits} credits remaining.</p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            className="flex-shrink-0 gap-2 border-white/25 text-neutral-300 tracking-[0.03em] transition-all duration-200 hover:border-white/40 hover:text-white"
-            onClick={handleLogout}
-            disabled={isSigningOut}
+            onClick={onProfileClick}
+            className="group relative flex-shrink-0 text-sm font-medium uppercase tracking-[0.18em] text-neutral-300 transition hover:text-[var(--brand-green)]"
           >
-            {isSigningOut ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Signing out…
-              </>
-            ) : (
-              <>
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Sign out</span>
-              </>
-            )}
-          </Button>
+            Profile
+            <span className="absolute -bottom-1 left-0 right-0 h-[1.5px] origin-center scale-x-0 bg-gradient-to-r from-transparent via-[var(--brand-green)] to-transparent transition-transform duration-200 ease-out group-hover:scale-x-100" />
+          </button>
         </div>
       </div>
     </nav>

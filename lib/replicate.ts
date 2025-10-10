@@ -16,6 +16,7 @@ export interface CreatePredictionPayload {
   skinTone: string
   aspectRatio: string
   version: string
+  numOutputs?: number
 }
 
 export interface ReplicatePrediction {
@@ -51,12 +52,13 @@ async function replicateFetch<T>(
 }
 
 export async function createPrediction(payload: CreatePredictionPayload): Promise<ReplicatePrediction> {
+  const numOutputs = payload.numOutputs ?? 2
   if (!replicateEnabled) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
     return {
       id: `mock-${Date.now()}`,
       status: 'succeeded',
-      output: [`${siteUrl.replace(/\/$/, '')}/mock-results/sample-result.jpg`],
+      output: Array.from({ length: numOutputs }, () => `${siteUrl.replace(/\/$/, '')}/mock-results/sample-result.jpg`),
     }
   }
 
@@ -68,6 +70,7 @@ export async function createPrediction(payload: CreatePredictionPayload): Promis
       style: payload.style,
       skin_tone: payload.skinTone,
       aspect_ratio: payload.aspectRatio,
+      num_outputs: numOutputs,
     },
   }
 
@@ -93,13 +96,13 @@ export async function getPrediction(predictionId: string): Promise<ReplicatePred
 
 export async function waitForPrediction(
   predictionId: string,
-  { pollIntervalMs = 2000, timeoutMs = 120000 } = {},
+  { pollIntervalMs = 2000, timeoutMs = 120000, expectedOutputs = 1 } = {},
 ): Promise<ReplicatePrediction> {
   if (!replicateEnabled) {
     return {
       id: predictionId,
       status: 'succeeded',
-      output: [`${(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '')}/mock-results/sample-result.jpg`],
+      output: Array.from({ length: expectedOutputs }, () => `${(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '')}/mock-results/sample-result.jpg`),
     }
   }
 

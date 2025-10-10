@@ -52,6 +52,26 @@ export async function deleteFromCloudinary(deleteToken: string): Promise<void> {
 
   if (!response.ok) {
     const errorText = await response.text()
+    if (errorText.toLowerCase().includes('stale request')) {
+      console.warn('[cloudinary] Ignoring stale delete token response.')
+      return
+    }
     throw new Error(errorText || 'Cloudinary deletion failed.')
   }
+}
+
+const WATERMARK_TEXT = 'ModelCast Preview'
+const WATERMARK_TEXT_ENCODED = encodeURIComponent(WATERMARK_TEXT)
+
+const isAlreadyWatermarked = (url: string) => url.includes(WATERMARK_TEXT_ENCODED)
+
+export function buildWatermarkedPreviewUrl(sourceUrl: string): string {
+  if (!cloudName || !sourceUrl || isAlreadyWatermarked(sourceUrl)) {
+    return sourceUrl
+  }
+
+  const encodedSource = encodeURIComponent(sourceUrl)
+  const transformation = `l_text:Montserrat_44_bold:${WATERMARK_TEXT_ENCODED},co_rgb:ffffff,opacity_30,g_south,y_40`
+
+  return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformation}/${encodedSource}`
 }

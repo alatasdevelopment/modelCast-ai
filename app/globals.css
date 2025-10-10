@@ -4,6 +4,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --brand-green: #9fff57;
+  --brand-green-hover: #a5ff61;
+  --brand-green-muted: rgba(159, 255, 87, 0.14);
+  --brand-surface: #0b0b0b;
+  --brand-surface-elevated: #121212;
   --background: oklch(1.0 0 0);
   --foreground: #121113;
   --card: oklch(1.0 0 0);
@@ -56,6 +61,11 @@
 
 .dark {
   /* Updated to pure black background for Skitbit aesthetic */
+  --brand-green: #9fff57;
+  --brand-green-hover: #a5ff61;
+  --brand-green-muted: rgba(159, 255, 87, 0.16);
+  --brand-surface: #0b0b0b;
+  --brand-surface-elevated: #121212;
   --background: oklch(0.1 0 0);
   --foreground: oklch(0.95 0 0);
   --card: oklch(0.12 0 0);
@@ -170,12 +180,12 @@ body {
 
 /* Updated text selection to neon green */
 ::selection {
-  background-color: #a6ff00;
+  background-color: var(--brand-green);
   color: #000000;
 }
 
 ::-moz-selection {
-  background-color: #a6ff00;
+  background-color: var(--brand-green);
   color: #000000;
 }
 
