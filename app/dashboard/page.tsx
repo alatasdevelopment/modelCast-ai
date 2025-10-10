@@ -28,19 +28,79 @@ function DashboardContent() {
   }, [user?.user_metadata?.full_name])
 
   const handleGenerate = useCallback(
-    async (settings: GenerationSettings) => {
-      setIsGenerating(true)
-      try {
+    async (settings: GenerationSettings): Promise<string | null> => {
+      if (!settings.imageUrl) {
         toast({
-          title: "Generating model shot",
-          description: "This preview uses placeholder data until the Replicate integration lands.",
+          title: "Product image missing",
+          description: "Upload your product image before generating.",
+          variant: "destructive",
+        })
+        return null
+      }
+
+      const startedAt = Date.now()
+      setIsGenerating(true)
+      toast({
+        title: "Generating your model shot…",
+        description: "Hang tight while we style your product.",
+        duration: 3000,
+      })
+
+      let outputUrl: string | null = null
+
+      try {
+        const response = await fetch("/api/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image: settings.imageUrl,
+            styleType: settings.styleType,
+            gender: settings.gender,
+            ageGroup: settings.ageGroup,
+            skinTone: settings.skinTone,
+            aspectRatio: settings.aspectRatio,
+          }),
         })
 
-        await new Promise((resolve) => setTimeout(resolve, 1800))
+        const payload = await response.json().catch(() => null)
+
+        if (response.status === 401) {
+          toast({
+            title: "Session expired",
+            description: "Sign in again to keep generating model shots.",
+            variant: "destructive",
+          })
+          router.replace("/login")
+          router.refresh()
+          return null
+        }
+
+        if (!response.ok) {
+          const message =
+            (payload && typeof payload.error === "string" && payload.error) ||
+            "Generation failed. Please try again."
+          throw new Error(message)
+        }
+
+        outputUrl =
+          (payload && typeof payload.outputUrl === "string" && payload.outputUrl) ||
+          (payload && Array.isArray(payload.output) && typeof payload.output[payload.output.length - 1] === "string"
+            ? payload.output[payload.output.length - 1]
+            : null)
+
+        if (!outputUrl) {
+          throw new Error("No output returned from the generation service.")
+        }
 
         const newImage: GeneratedImage = {
-          id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now().toString(),
-          url: "https://images.unsplash.com/photo-1531256456869-ce942a665e80?q=80&w=500&auto=format&fit=crop",
+          id:
+            (payload && typeof payload.predictionId === "string" && payload.predictionId) ||
+            (typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : Date.now().toString()),
+          url: outputUrl,
           timestamp: new Date(),
           settings: {
             styleType: settings.styleType,
@@ -51,20 +111,36 @@ function DashboardContent() {
           },
         }
 
-        setGeneratedImages((previous) => [newImage, ...previous])
+        setGeneratedImages((previous) => [newImage, ...previous].slice(0, 3))
         setCredits((previous) => Math.max(previous - 1, 0))
-      } catch (error) {
-        console.error("[dashboard] generate preview failed", error)
         toast({
-          title: "Something went wrong",
-          description: "Try again in a few seconds.",
+          title: "Model shot generated successfully.",
+          description: "Check Recent Generations for your new look.",
+        })
+      } catch (error) {
+        console.error("[dashboard] generate prediction failed", error)
+        toast({
+          title: "Generation failed. Please try again.",
+          description:
+            error instanceof Error ? error.message : "Unexpected error occurred.",
           variant: "destructive",
         })
       } finally {
+        const replicateEnabled =
+          typeof process.env.NEXT_PUBLIC_REPLICATE_ENABLED === "string"
+            ? process.env.NEXT_PUBLIC_REPLICATE_ENABLED === "true"
+            : false
+        const minDuration = replicateEnabled ? 0 : 900
+        const elapsed = Date.now() - startedAt
+        if (elapsed < minDuration) {
+          await new Promise((resolve) => setTimeout(resolve, minDuration - elapsed))
+        }
         setIsGenerating(false)
       }
+
+      return outputUrl
     },
-    [toast],
+    [router, toast],
   )
 
   const handleSignOut = useCallback(async () => {
@@ -99,11 +175,15 @@ function DashboardContent() {
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-12 sm:px-6 lg:flex-row lg:items-start lg:gap-12 lg:px-8 xl:gap-16">
         <section className="w-full flex-1 space-y-8">
-          <ModelGenerator onGenerate={handleGenerate} isGenerating={isGenerating} hasCredits={credits > 0} />
+          <ModelGenerator
+            onGenerate={handleGenerate}
+            hasCredits={credits > 0}
+            lastGeneratedUrl={generatedImages[0]?.url ?? null}
+          />
         </section>
 
         <aside className="w-full flex-1 space-y-8">
-          <ResultsGallery images={generatedImages} />
+          <ResultsGallery images={generatedImages} isGenerating={isGenerating} />
           <ProfileCard credits={credits} userName={fullName} email={user?.email ?? null} />
         </aside>
       </main>
