@@ -106,8 +106,8 @@ export default function LoginPage() {
           <Link href="/" className="inline-block mb-4">
             <Logo
               priority
-              sizes="(max-width: 768px) 10rem, 12rem"
-              className="mx-auto h-48 w-48 md:h-[13rem] md:w-[13rem]"
+              sizes="(max-width: 768px) 4.5rem, 6.75rem"
+              className="mx-auto h-[4.5rem] w-[4.5rem] md:h-[6rem] md:w-[6rem]"
             />
           </Link>
           <h1 className="text-3xl font-bold text-white mb-2">Welcome back</h1>
@@ -200,9 +200,10 @@ export default function LoginPage() {
                 size="lg"
                 disabled={isLoading}
                 onClick={handleGoogleSignIn}
-                className="w-full h-12 rounded-xl text-base font-semibold transition-transform duration-200 ease-out will-change-transform hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(166,255,0,0.35)] active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 group disabled:opacity-60"
+                type="button"
+                className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white text-base font-semibold text-black shadow-[0_6px_18px_rgba(0,0,0,0.15)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-[#22c55e]/40 focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60"
               >
-                <Image src="/logos/google.png" alt="Google" width={20} height={20} className="mr-2 h-5 w-5" />
+                <Image src="/logos/google.png" alt="Google" width={20} height={20} className="h-5 w-5" />
                 Continue with Google
               </Button>
             </div>

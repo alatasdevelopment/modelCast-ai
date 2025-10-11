@@ -127,8 +127,8 @@ export default function SignupPage() {
           <Link href="/" className="inline-block mb-4">
             <Logo
               priority
-              sizes="(max-width: 768px) 11rem, 13rem"
-              className="mx-auto h-48 w-48 md:h-56 md:w-56"
+              sizes="(max-width: 768px) 4.75rem, 6.9rem"
+              className="mx-auto h-[4.5rem] w-[4.5rem] md:h-[6rem] md:w-[6rem]"
             />
           </Link>
           <h1 className="text-3xl font-bold text-white mb-2">Create account</h1>
@@ -262,16 +262,17 @@ export default function SignupPage() {
               <span className="px-2 bg-black text-zinc-500">Or continue with</span>
             </div>
           </div>
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6">
             <Button
               size="lg"
               disabled={isLoading}
               onClick={handleGoogleSignUp}
-              className="min-w-[240px] h-12 rounded-xl text-base font-semibold transition-transform duration-200 ease-out will-change-transform hover:scale-[1.03] hover:shadow-[0_0_20px_rgba(166,255,0,0.35)] active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 group disabled:opacity-60"
-              >
-                <Image src="/logos/google.png" alt="Google" width={20} height={20} className="mr-2 h-5 w-5" />
-                Continue with Google
-              </Button>
+              type="button"
+              className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white text-base font-semibold text-black shadow-[0_6px_18px_rgba(0,0,0,0.15)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-[#22c55e]/40 focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60"
+            >
+              <Image src="/logos/google.png" alt="Google" width={20} height={20} className="h-5 w-5" />
+              Continue with Google
+            </Button>
           </div>
         </motion.div>
       </motion.div>

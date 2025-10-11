@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { ProfileCard } from "@/components/dashboard/profile-card"
 import { ModelGenerator, type GenerationSettings } from "@/components/dashboard/model-generator"
-import { ResultsGallery } from "@/components/dashboard/results-gallery"
+import { RecentGenerations } from "@/components/dashboard/recent-generations"
 import { LatestPreviewCard } from "@/components/dashboard/latest-preview-card"
 import type { GeneratedImage } from "@/components/dashboard/types"
 import { SessionGuard } from "@/components/auth/session-guard"
@@ -229,12 +229,12 @@ function DashboardContent() {
 
         <aside className="order-2 w-full space-y-6 border-t border-white/5 pt-6 md:order-2 md:border-t-0 md:border-l md:border-white/10 md:pl-8 md:pt-0 md:flex-[0.4] lg:pl-12">
           <LatestPreviewCard image={latestImage} isGenerating={isGenerating} />
-          <ResultsGallery images={generatedImages} isGenerating={isGenerating} />
+          <RecentGenerations images={generatedImages} isGenerating={isGenerating} />
         </aside>
       </main>
 
       <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-        <DialogContent className="max-w-lg overflow-hidden border-white/10 bg-[#101010]/95 px-6 py-6 text-white shadow-[0_0_32px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:px-10">
+        <DialogContent className="max-w-xl overflow-hidden border-white/10 bg-[#101010]/95 px-6 py-6 text-white shadow-[0_0_32px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:px-10">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold tracking-[0.14em] text-[var(--brand-green)]">
               Your Account

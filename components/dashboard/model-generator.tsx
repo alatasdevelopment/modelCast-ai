@@ -333,14 +333,14 @@ export function ModelGenerator({
               <Label
                 key={style.id}
                 htmlFor={style.id}
-                className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-4 text-base text-neutral-200 transition ${
+                className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-2 text-sm text-neutral-200 transition ${
                   formValues.styleType === style.id
-                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
                     : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
                 }`}
               >
                 <RadioGroupItem value={style.id} id={style.id} className="sr-only" />
-                <span className="text-2xl">{style.icon}</span>
+                <span className="text-xl">{style.icon}</span>
                 {style.label}
               </Label>
             ))}
@@ -360,9 +360,9 @@ export function ModelGenerator({
               <Label
                 key={gender}
                 htmlFor={gender}
-                className={`flex cursor-pointer items-center justify-center rounded-xl border p-4 text-base capitalize text-neutral-200 transition ${
+                className={`flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm capitalize text-neutral-200 transition ${
                   formValues.gender === gender
-                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
                     : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
                 }`}
               >
@@ -386,9 +386,9 @@ export function ModelGenerator({
               <Label
                 key={age}
                 htmlFor={age}
-                className={`flex cursor-pointer items-center justify-center rounded-xl border p-3 text-sm font-medium uppercase tracking-wide text-neutral-300 transition ${
+                className={`flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm font-medium uppercase tracking-wide text-neutral-300 transition ${
                   formValues.ageGroup === age
-                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
                     : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
                 }`}
               >
@@ -409,7 +409,7 @@ export function ModelGenerator({
                 onClick={() =>
                   setFormValues((current) => ({ ...current, skinTone: tone.id }))
                 }
-                className={`h-12 rounded-xl border transition hover:scale-[1.02] ${
+                className={`h-10 rounded-xl border transition hover:scale-[1.02] ${
                   formValues.skinTone === tone.id
                     ? 'border-transparent shadow-[0_0_18px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
                     : 'border-white/15 hover:border-white/25'
@@ -446,7 +446,7 @@ export function ModelGenerator({
             type="button"
             onClick={handleGenerate}
             disabled={isGenerating || isUploading || !hasCredits || !cloudinaryAsset?.secureUrl}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-green)] to-[var(--brand-green-hover)] py-5 text-base font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_28px_rgba(159,255,87,0.35)] focus-visible:shadow-[0_0_30px_rgba(159,255,87,0.4)] disabled:translate-y-0 disabled:opacity-60"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#9FFF57] px-6 text-base font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(159,255,87,0.4)] focus-visible:ring-2 focus-visible:ring-[#9FFF57] focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60"
           >
             {isGenerating ? (
               <>
@@ -460,7 +460,7 @@ export function ModelGenerator({
               </>
             )}
           </Button>
-          <p className="mt-3 text-center text-xs font-medium uppercase tracking-[0.18em] text-[rgba(159,255,87,0.72)]">
+          <p className="mt-3 text-center text-xs font-medium uppercase tracking-[0.18em] text-[#9FFF57]/90">
             {modeLabel}
           </p>
         </div>
@@ -478,7 +478,7 @@ export function ModelGenerator({
               <Button
                 type="button"
                 variant="outline"
-                className="mt-3 w-full justify-center rounded-lg border-[var(--brand-green)]/65 bg-black/60 text-sm font-semibold text-[var(--brand-green)] transition hover:-translate-y-0.5 hover:border-[var(--brand-green)] hover:text-[var(--brand-green)]"
+                className="mt-3 w-full justify-center rounded-lg border-[#9FFF57]/60 bg-black/60 text-sm font-semibold text-[#9FFF57] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-[#9FFF57] hover:bg-[#9FFF57]/10 hover:text-[#9FFF57]"
                 onClick={onUpgradeClick}
               >
                 Buy another credit

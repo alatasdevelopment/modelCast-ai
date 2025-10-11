@@ -14,3 +14,10 @@ export interface GeneratedImage {
     aspectRatio: string
   }
 }
+
+export interface FlattenedGeneratedImage {
+  id: string
+  url: string
+  mode: GenerationMode
+  timestamp: Date
+}

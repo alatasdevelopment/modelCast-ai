@@ -197,7 +197,7 @@ export function ProfileCard({
         <div className="space-y-4">
           <Button
             type="button"
-            className="w-full justify-start gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-green)] to-[var(--brand-green-hover)] text-sm font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_0_26px_rgba(159,255,87,0.35)]"
+            className="w-full justify-start gap-2 rounded-xl bg-[#9FFF57] text-sm font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(159,255,87,0.4)]"
             onClick={() => {
               onClose?.()
               onUpgradeClick()
@@ -217,24 +217,22 @@ export function ProfileCard({
           </Button>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-white/12 bg-white/[0.035] p-5">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-black/35 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Total credits</p>
-              <p className="mt-3 text-xl font-semibold text-[var(--brand-green)]">
-                {credits} / {maxCredits}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/35 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Status</p>
-              <p className="mt-3 text-xl font-semibold text-neutral-100">
-                {credits > 0 ? 'Active' : 'Recharge needed'}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/35 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Price per shot</p>
-              <p className="mt-3 text-xl font-semibold text-[var(--brand-green)]">$1</p>
-            </div>
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-1 md:grid-cols-3">
+          <div className="rounded-xl border border-white/10 bg-black/35 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Total credits</p>
+            <p className="mt-3 text-xl font-semibold text-[var(--brand-green)]">
+              {credits} / {maxCredits}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/35 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Status</p>
+            <p className="mt-3 text-xl font-semibold text-neutral-100">
+              {credits > 0 ? 'Active' : 'Recharge needed'}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/35 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Price per shot</p>
+            <p className="mt-3 text-xl font-semibold text-[var(--brand-green)]">$1</p>
           </div>
         </div>
       </Card>
