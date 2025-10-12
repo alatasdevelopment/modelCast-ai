@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Image from 'next/image'
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Loader2, Sparkles } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import { toast } from '@/hooks/use-toast'
@@ -144,14 +144,8 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
       <Card className="flex flex-col space-y-4 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-5 text-neutral-300 md:p-6">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-800 bg-neutral-900/60">
-              <Image
-                src="/logos/img-generation.png"
-                alt="ModelCast logo"
-                width={28}
-                height={28}
-                className="h-7 w-7 object-contain brightness-0 invert"
-              />
+            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#9FFF57]/30 bg-[#9FFF57]/15 text-[#9FFF57]">
+              <Sparkles className="h-4 w-4" />
             </span>
             <p className="text-sm uppercase tracking-wider text-[#9FFF57]">Recent Generations</p>
           </div>

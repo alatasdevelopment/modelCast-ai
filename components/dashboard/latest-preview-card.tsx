@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import type { GeneratedImage } from '@/components/dashboard/types'
@@ -25,14 +25,8 @@ export function LatestPreviewCard({ image, isGenerating }: LatestPreviewCardProp
   return (
     <Card className="group relative mt-2 flex min-h-[460px] flex-col rounded-2xl border border-white/10 bg-[#111112] p-5 md:p-6 text-neutral-300 transition-all duration-200 ease-out hover:shadow-[0_0_12px_rgba(159,255,87,0.25)]">
       <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-800 bg-neutral-900/60">
-          <Image
-            src="/logos/img-generation.png"
-            alt="ModelCast logo"
-            width={28}
-            height={28}
-            className="h-7 w-7 object-contain brightness-0 invert"
-          />
+        <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#9FFF57]/30 bg-[#9FFF57]/15 text-[#9FFF57]">
+          <Sparkles className="h-4 w-4" />
         </span>
         <div className="space-y-1">
           <p className="text-sm uppercase tracking-wide text-[#9FFF57]">Preview</p>

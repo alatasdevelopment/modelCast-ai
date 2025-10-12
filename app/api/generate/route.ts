@@ -2,114 +2,287 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 
-import { createPrediction, waitForPrediction } from "@/lib/replicate"
-import { buildWatermarkedPreviewUrl } from "@/lib/cloudinary"
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
+const REPLICATE_MODEL_VERSION = process.env.REPLICATE_MODEL_VERSION
+const REPLICATE_ENABLED = process.env.REPLICATE_ENABLED === "true"
+const isProduction = process.env.NODE_ENV === "production"
 
-const replicateModelVersion = process.env.REPLICATE_MODEL_VERSION
-const replicateEnabled = process.env.REPLICATE_ENABLED === "true"
+interface GenerateRequestBody {
+  imageUrl?: string
+  image?: string
+  style?: string
+  styleType?: string
+  gender?: string
+  age?: string
+  ageGroup?: string
+  tone?: string
+  skinTone?: string
+}
 
-function buildModelVariant(gender: string, ageGroup: string) {
-  const normalizedGender = typeof gender === "string" ? gender.toLowerCase() : "female"
-  const normalizedAge = typeof ageGroup === "string" ? ageGroup.toLowerCase() : "youth"
-  return `${normalizedGender}_${normalizedAge}`
+const CLOUDINARY_PREFIX = "https://res.cloudinary.com/"
+const POLL_DELAYS = [2000, 3000, 5000, 8000]
+const POLL_TIMEOUT_MS = 60 * 1000
+
+const logInfo = (...args: unknown[]) => {
+  if (!isProduction) {
+    console.info(...args)
+  }
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+type ParsedPayload = {
+  imageUrl: string
+  style: string
+  gender: string
+  age: string
+  tone: string
+}
+
+const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => {
+  let payload: GenerateRequestBody
+
+  try {
+    payload = (await request.json()) as GenerateRequestBody
+  } catch {
+    throw new Error('INVALID_PAYLOAD')
+  }
+
+  const imageUrl = payload.imageUrl ?? payload.image
+  const style = payload.style ?? payload.styleType
+  const gender = payload.gender
+  const age = payload.age ?? payload.ageGroup
+  const tone = payload.tone ?? payload.skinTone
+
+  if (
+    typeof imageUrl !== 'string' ||
+    typeof style !== 'string' ||
+    typeof gender !== 'string' ||
+    typeof age !== 'string' ||
+    typeof tone !== 'string'
+  ) {
+    throw new Error('INVALID_PAYLOAD')
+  }
+
+  if (!imageUrl.startsWith(CLOUDINARY_PREFIX)) {
+    throw new Error('INVALID_IMAGE_URL')
+  }
+
+  return {
+    imageUrl,
+    style,
+    gender,
+    age,
+    tone,
+  }
+}
+
+const buildPrompt = ({
+  style,
+  gender,
+  age,
+  tone,
+}: {
+  style: string
+  gender: string
+  age: string
+  tone: string
+}) => `AI model shot, ${style} style, ${gender} model, ${age} group, ${tone} tone`
+
+const callReplicate = async ({
+  imageUrl,
+  prompt,
+}: {
+  imageUrl: string
+  prompt: string
+}) => {
+  if (!REPLICATE_MODEL_VERSION || !REPLICATE_API_TOKEN) {
+    throw new Error('Replicate environment variables are not configured.')
+  }
+
+  const response = await fetch('https://api.replicate.com/v1/predictions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      version: REPLICATE_MODEL_VERSION,
+      input: {
+        image: imageUrl,
+        prompt,
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Replicate request failed (${response.status})`)
+  }
+
+  return (await response.json()) as { id: string }
+}
+
+const fetchPredictionStatus = async (predictionId: string) => {
+  if (!REPLICATE_API_TOKEN) {
+    throw new Error('Replicate API token missing')
+  }
+
+  const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+    headers: {
+      Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(errorText || `Replicate status failed (${response.status})`)
+  }
+
+  return (await response.json()) as {
+    status: string
+    output?: unknown
+    error?: string
+  }
+}
+
+const extractOutputUrl = (output: unknown): string | null => {
+  if (Array.isArray(output) && typeof output[0] === 'string') {
+    return output[0]
+  }
+
+  if (typeof output === 'string') {
+    return output
+  }
+
+  return null
 }
 
 export async function POST(request: Request) {
-  if (replicateEnabled) {
+  try {
     const supabase = createRouteHandlerClient({ cookies })
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (authError || !user) {
+      console.warn('[generate] Unauthorized request', authError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (!replicateModelVersion) {
-      return NextResponse.json(
-        { error: "Replication model version is not configured." },
-        { status: 500 },
-      )
+    let parsedPayload: ParsedPayload
+
+    try {
+      parsedPayload = await parseRequestPayload(request)
+    } catch (error) {
+      if ((error as Error).message === 'INVALID_IMAGE_URL' || (error as Error).message === 'INVALID_PAYLOAD') {
+        return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
+      }
+      console.error('[generate] payload parsing failed', error)
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
     }
-  }
 
-  const payload = await request.json()
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('credits')
+      .eq('id', user.id)
+      .maybeSingle()
 
-  const { image, styleType, gender, ageGroup, skinTone, aspectRatio, isFreePreview } = payload ?? {}
+    if (profileError) {
+      console.error('[generate] failed to fetch credits', profileError)
+      return NextResponse.json({ error: 'Unable to verify credits' }, { status: 500 })
+    }
 
-  const isFreeUser = Boolean(isFreePreview)
-  const numOutputs = isFreeUser ? 1 : 2
+    const credits = typeof profile?.credits === 'number' ? profile.credits : 0
 
-  if (
-    typeof image !== "string" ||
-    typeof styleType !== "string" ||
-    typeof gender !== "string" ||
-    typeof ageGroup !== "string" ||
-    typeof skinTone !== "string" ||
-    typeof aspectRatio !== "string"
-  ) {
-    return NextResponse.json({ error: "Invalid request payload." }, { status: 400 })
-  }
+    if (credits <= 0) {
+      return NextResponse.json({ error: 'Out of credits' }, { status: 402 })
+    }
 
-  if (!image.startsWith("https://")) {
-    return NextResponse.json({ error: "Image URL must be secure." }, { status: 400 })
-  }
+    if (!REPLICATE_ENABLED) {
+      const mockResponse = {
+        success: true,
+        mock: true,
+        outputUrl: '/placeholder/mock-preview.png',
+        outputUrls: ['/placeholder/mock-preview.png'],
+        status: 'succeeded',
+        creditsUsed: 1,
+      }
 
-  try {
-    const prediction = await createPrediction({
-      version: replicateModelVersion ?? "mock-model-version",
-      image,
-      style: styleType,
-      skinTone,
-      aspectRatio,
-      model: buildModelVariant(gender, ageGroup),
-      numOutputs,
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ credits: credits - 1 })
+        .eq('id', user.id)
+
+      if (updateError) {
+        console.error('[generate] failed to decrement credits (mock)', updateError)
+        return NextResponse.json({ error: 'Unable to update credits' }, { status: 500 })
+      }
+
+      return NextResponse.json(mockResponse)
+    }
+
+    const prompt = buildPrompt(parsedPayload)
+    const prediction = await callReplicate({
+      imageUrl: parsedPayload.imageUrl,
+      prompt,
     })
 
-    const result = await waitForPrediction(prediction.id, { expectedOutputs: numOutputs })
+    logInfo('[generate] replicate start', { predictionId: prediction.id })
 
-    if (result.status !== "succeeded") {
-      console.error("Replicate prediction failed", result)
-      return NextResponse.json(
-        {
-          error: "Prediction did not succeed.",
-          status: result.status,
-          details: result.error ?? null,
-        },
-        { status: 500 },
-      )
-    }
+    const start = Date.now()
+    let attempt = 0
 
-    const rawOutputs = Array.isArray(result.output)
-      ? result.output
-      : typeof result.output === "string"
-        ? [result.output]
-        : []
+    while (Date.now() - start < POLL_TIMEOUT_MS) {
+      const status = await fetchPredictionStatus(prediction.id)
 
-    if (!Array.isArray(rawOutputs) || rawOutputs.length === 0) {
-      return NextResponse.json(
-        { error: "Unexpected prediction output format." },
-        { status: 500 },
-      )
-    }
+      if (status.status === 'succeeded') {
+        const outputUrl = extractOutputUrl(status.output)
 
-    const outputUrls = rawOutputs
-      .slice(0, numOutputs)
-      .map((output) => {
-        if (typeof output !== "string") {
-          throw new Error("Prediction output must be a URL string")
+        if (!outputUrl) {
+          throw new Error('Prediction succeeded without output URL')
         }
-        return isFreeUser ? buildWatermarkedPreviewUrl(output) : output
-      })
 
-    return NextResponse.json({
-      outputUrls,
-      outputUrl: outputUrls[0],
-      predictionId: result.id,
-      mode: isFreeUser ? "preview" : "hd",
-    })
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ credits: credits - 1 })
+          .eq('id', user.id)
+
+        if (updateError) {
+          console.error('[generate] failed to decrement credits', updateError)
+          return NextResponse.json({ error: 'Unable to update credits' }, { status: 500 })
+        }
+
+        logInfo('[generate] replicate completed', { predictionId: prediction.id })
+
+        return NextResponse.json({
+          success: true,
+          outputUrl,
+          outputUrls: [outputUrl],
+          creditsUsed: 1,
+        })
+      }
+
+      if (status.status === 'failed' || status.status === 'canceled') {
+        console.error('[generate] prediction failed', status)
+        return NextResponse.json(
+          { success: false, error: 'Generation failed' },
+          { status: 500 },
+        )
+      }
+
+      const delay = POLL_DELAYS[Math.min(attempt, POLL_DELAYS.length - 1)]
+      attempt += 1
+      await sleep(delay)
+    }
+
+    console.error('[generate] prediction timeout exceeded', { predictionId: prediction.id })
+    return NextResponse.json({ success: false, error: 'Generation failed' }, { status: 500 })
   } catch (error) {
-    console.error("Failed to generate prediction", error)
-    return NextResponse.json({ error: "Generation failed." }, { status: 500 })
+    console.error('[generate] server error', error)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

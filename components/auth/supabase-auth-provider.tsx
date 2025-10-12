@@ -58,7 +58,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
     user: session?.user ?? null,
     isLoading,
     signOut: async () => {
-      const { error } = await getSupabaseClient().auth.signOut()
+      const { error } = await supabase.auth.signOut()
       if (error) {
         console.error("[auth] signOut failed", error)
         throw error

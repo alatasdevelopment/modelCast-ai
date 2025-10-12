@@ -12,6 +12,7 @@ import type { GeneratedImage } from "@/components/dashboard/types"
 import { SessionGuard } from "@/components/auth/session-guard"
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
 import { useToast } from "@/hooks/use-toast"
+import { getSupabaseClient } from "@/lib/supabaseClient"
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,7 @@ function DashboardContent() {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const supabase = useMemo(() => getSupabaseClient(), [])
 
   const fullName = useMemo(() => {
     const maybeName = user?.user_metadata?.full_name
@@ -75,6 +77,21 @@ function DashboardContent() {
       })
 
       try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session) {
+          toast({
+            title: "Session expired",
+            description: "Please log in again to continue generating.",
+            variant: "destructive",
+          })
+          await supabase.auth.signOut()
+          router.push("/login")
+          return null
+        }
+
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: {
@@ -89,6 +106,7 @@ function DashboardContent() {
             aspectRatio: settings.aspectRatio,
             isFreePreview: isFreeMode,
           }),
+          credentials: "include",
         })
 
         const payload = await response.json().catch(() => null)
@@ -99,8 +117,27 @@ function DashboardContent() {
             description: "Sign in again to keep generating model shots.",
             variant: "destructive",
           })
+          await supabase.auth.signOut()
           router.replace("/login")
           router.refresh()
+          return null
+        }
+
+        if (response.status === 402) {
+          toast({
+            title: "Out of credits",
+            description: "You’ve used all your credits. Upgrade to continue generating.",
+            variant: "destructive",
+          })
+          return null
+        }
+
+        if (response.status >= 500) {
+          toast({
+            title: "Generation failed",
+            description: "Please try again in a moment.",
+            variant: "destructive",
+          })
           return null
         }
 
@@ -178,7 +215,7 @@ function DashboardContent() {
 
       return latestOutputUrl
     },
-    [FREE_TIER_MAX, credits, router, toast],
+    [FREE_TIER_MAX, credits, router, supabase, toast],
   )
 
   const handleSignOut = useCallback(async () => {

@@ -2,15 +2,12 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@supabase/supabase-js"
 
 import { Logo } from "@/components/logo"
 import { toast } from "@/hooks/use-toast"
+import { getSupabaseClient } from "@/lib/supabaseClient"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-)
+const supabase = getSupabaseClient()
 
 export default function AuthCallbackPage() {
   const router = useRouter()
