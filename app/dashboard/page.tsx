@@ -133,9 +133,11 @@ function DashboardContent() {
         }
 
         if (response.status >= 500) {
+          const errorMessage =
+            (payload && typeof payload.error === "string" && payload.error) || "Generation failed. Please try again."
           toast({
             title: "Generation failed",
-            description: "Please try again in a moment.",
+            description: errorMessage,
             variant: "destructive",
           })
           return null
@@ -148,33 +150,35 @@ function DashboardContent() {
           throw new Error(message)
         }
 
-        const payloadOutputUrls =
-          payload && Array.isArray(payload.outputUrls)
-            ? (payload.outputUrls as unknown[]).filter((value): value is string => typeof value === "string")
-            : []
+        if (!payload || payload.success !== true) {
+          const message =
+            (payload && typeof payload.error === "string" && payload.error) ||
+            "Generation failed. Please try again."
+          toast({
+            title: "Generation failed",
+            description: message,
+            variant: "destructive",
+          })
+          return null
+        }
 
-        if (payloadOutputUrls.length === 0) {
+        if (typeof payload.outputUrl !== "string") {
           throw new Error("No output returned from the generation service.")
         }
 
-        const outputUrl = payloadOutputUrls[0]
+        const outputUrl = payload.outputUrl
         latestOutputUrl = outputUrl
 
-        const mode = payload && typeof payload.mode === "string"
-          ? (payload.mode === "preview" ? "preview" : "hd")
-          : isFreeMode
-            ? "preview"
-            : "hd"
-        const limitedOutputUrls = mode === "preview" ? [outputUrl] : payloadOutputUrls
+        const mode = isFreeMode ? "preview" : "hd"
+        const outputUrls = [outputUrl]
 
         const newImage: GeneratedImage = {
           id:
-            (payload && typeof payload.predictionId === "string" && payload.predictionId) ||
-            (typeof crypto !== "undefined" && "randomUUID" in crypto
+            typeof crypto !== "undefined" && "randomUUID" in crypto
               ? crypto.randomUUID()
-              : Date.now().toString()),
+              : Date.now().toString(),
           url: outputUrl,
-          urls: limitedOutputUrls,
+          urls: outputUrls,
           mode,
           timestamp: new Date(),
           settings: {
@@ -187,7 +191,11 @@ function DashboardContent() {
         }
 
         setGeneratedImages((previous) => [newImage, ...previous].slice(0, 2))
-        setCredits((previous) => Math.max(previous - 1, 0))
+        if (payload && typeof payload.creditsRemaining === "number") {
+          setCredits(Math.max(payload.creditsRemaining, 0))
+        } else {
+          setCredits((previous) => Math.max(previous - 1, 0))
+        }
         toast({
           title: "Model shot generated successfully.",
           description: "Check Recent Generations for your new look.",
@@ -201,11 +209,11 @@ function DashboardContent() {
           variant: "destructive",
         })
       } finally {
-        const replicateEnabled =
-          typeof process.env.NEXT_PUBLIC_REPLICATE_ENABLED === "string"
-            ? process.env.NEXT_PUBLIC_REPLICATE_ENABLED === "true"
+        const fashnEnabled =
+          typeof process.env.NEXT_PUBLIC_FASHN_ENABLED === "string"
+            ? process.env.NEXT_PUBLIC_FASHN_ENABLED === "true"
             : false
-        const minDuration = replicateEnabled ? 0 : 900
+        const minDuration = fashnEnabled ? 0 : 900
         const elapsed = Date.now() - startedAt
         if (elapsed < minDuration) {
           await new Promise((resolve) => setTimeout(resolve, minDuration - elapsed))

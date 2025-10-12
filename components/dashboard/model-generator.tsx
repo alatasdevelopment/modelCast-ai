@@ -225,11 +225,11 @@ export function ModelGenerator({
     } catch (error) {
       console.error('Model generation failed', error)
     } finally {
-      const replicateEnabled =
-        typeof process.env.NEXT_PUBLIC_REPLICATE_ENABLED === 'string'
-          ? process.env.NEXT_PUBLIC_REPLICATE_ENABLED === 'true'
+      const fashnEnabled =
+        typeof process.env.NEXT_PUBLIC_FASHN_ENABLED === 'string'
+          ? process.env.NEXT_PUBLIC_FASHN_ENABLED === 'true'
           : false
-      const minSpinnerDurationMs = replicateEnabled ? 0 : 900
+      const minSpinnerDurationMs = fashnEnabled ? 0 : 900
       const elapsed = Date.now() - startedAt
       const remainingDelay = Math.max(minSpinnerDurationMs - elapsed, 0)
 

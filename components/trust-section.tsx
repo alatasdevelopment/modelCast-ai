@@ -24,7 +24,7 @@ export function TrustSection() {
                 </div>
                 <div className="text-left">
                   <div className="text-sm text-white/60">Powered by</div>
-                  <div className="text-lg font-bold text-white">Replicate</div>
+                  <div className="text-lg font-bold text-white">FASHN AI</div>
                 </div>
               </div>
 

@@ -2,14 +2,17 @@ import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
-const REPLICATE_MODEL_VERSION = process.env.REPLICATE_MODEL_VERSION
-const REPLICATE_ENABLED = process.env.REPLICATE_ENABLED === "true"
 const isProduction = process.env.NODE_ENV === "production"
+
+const FASHN_ENDPOINT = "https://api.fashn.ai/v1/tryon"
+const CLOUDINARY_PREFIX = "https://res.cloudinary.com/"
+const DEFAULT_BACKGROUND = "studio"
+const DEFAULT_RESOLUTION = "1024x1024"
 
 interface GenerateRequestBody {
   imageUrl?: string
   image?: string
+  clothingImageUrl?: string
   style?: string
   styleType?: string
   gender?: string
@@ -19,24 +22,30 @@ interface GenerateRequestBody {
   skinTone?: string
 }
 
-const CLOUDINARY_PREFIX = "https://res.cloudinary.com/"
-const POLL_DELAYS = [2000, 3000, 5000, 8000]
-const POLL_TIMEOUT_MS = 60 * 1000
+type ParsedPayload = {
+  imageUrl: string
+  clothingImageUrl?: string
+  style: string
+  gender: string
+  age: string
+  skinTone: string
+}
+
+type FashnResponse =
+  | {
+      success: true
+      output_url: string
+    }
+  | {
+      success: false
+      error?: string
+      message?: string
+    }
 
 const logInfo = (...args: unknown[]) => {
   if (!isProduction) {
     console.info(...args)
   }
-}
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-type ParsedPayload = {
-  imageUrl: string
-  style: string
-  gender: string
-  age: string
-  tone: string
 }
 
 const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => {
@@ -45,7 +54,7 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
   try {
     payload = (await request.json()) as GenerateRequestBody
   } catch {
-    throw new Error('INVALID_PAYLOAD')
+    throw new Error("INVALID_PAYLOAD")
   }
 
   const imageUrl = payload.imageUrl ?? payload.image
@@ -53,115 +62,132 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
   const gender = payload.gender
   const age = payload.age ?? payload.ageGroup
   const tone = payload.tone ?? payload.skinTone
+  const clothingImageUrl =
+    typeof payload.clothingImageUrl === "string" && payload.clothingImageUrl.length > 0
+      ? payload.clothingImageUrl
+      : undefined
 
   if (
-    typeof imageUrl !== 'string' ||
-    typeof style !== 'string' ||
-    typeof gender !== 'string' ||
-    typeof age !== 'string' ||
-    typeof tone !== 'string'
+    typeof imageUrl !== "string" ||
+    typeof style !== "string" ||
+    typeof gender !== "string" ||
+    typeof age !== "string" ||
+    typeof tone !== "string"
   ) {
-    throw new Error('INVALID_PAYLOAD')
+    throw new Error("INVALID_PAYLOAD")
   }
 
   if (!imageUrl.startsWith(CLOUDINARY_PREFIX)) {
-    throw new Error('INVALID_IMAGE_URL')
+    throw new Error("INVALID_IMAGE_URL")
   }
 
   return {
     imageUrl,
+    clothingImageUrl,
     style,
     gender,
     age,
-    tone,
+    skinTone: tone,
   }
 }
 
-const buildPrompt = ({
-  style,
-  gender,
-  age,
-  tone,
-}: {
+interface FashnGenerationOptions {
+  imageUrl: string
+  clothingImageUrl?: string
   style: string
   gender: string
-  age: string
-  tone: string
-}) => `AI model shot, ${style} style, ${gender} model, ${age} group, ${tone} tone`
+  skinTone: string
+}
 
-const callReplicate = async ({
+const callFashn = async ({
   imageUrl,
-  prompt,
-}: {
-  imageUrl: string
-  prompt: string
-}) => {
-  if (!REPLICATE_MODEL_VERSION || !REPLICATE_API_TOKEN) {
-    throw new Error('Replicate environment variables are not configured.')
+  clothingImageUrl,
+  style,
+  gender,
+  skinTone,
+}: FashnGenerationOptions): Promise<string> => {
+  if (!FASHN_API_KEY) {
+    throw new Error("FASHN API key is not configured.")
   }
 
-  const response = await fetch('https://api.replicate.com/v1/predictions', {
-    method: 'POST',
+  const requestBody: Record<string, unknown> = {
+    model_image_url: imageUrl,
+    style,
+    gender,
+    skin_tone: skinTone,
+    background: DEFAULT_BACKGROUND,
+    resolution: DEFAULT_RESOLUTION,
+  }
+
+  if (clothingImageUrl) {
+    requestBody.clothing_image_url = clothingImageUrl
+  }
+
+  const response = await fetch(FASHN_ENDPOINT, {
+    method: "POST",
     headers: {
-      Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
-      'Content-Type': 'application/json',
+      Authorization: `Bearer ${FASHN_API_KEY}`,
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      version: REPLICATE_MODEL_VERSION,
-      input: {
-        image: imageUrl,
-        prompt,
-      },
-    }),
+    body: JSON.stringify(requestBody),
   })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(errorText || `Replicate request failed (${response.status})`)
+  const rawBody = await response.text()
+  let parsedBody: FashnResponse | null = null
+
+  if (rawBody) {
+    try {
+      parsedBody = JSON.parse(rawBody) as FashnResponse
+    } catch {
+      parsedBody = null
+    }
   }
 
-  return (await response.json()) as { id: string }
-}
+  if (!response.ok || !parsedBody) {
+    const errorMessage =
+      (parsedBody && "error" in parsedBody && typeof parsedBody.error === "string" && parsedBody.error) ||
+      (parsedBody && "message" in parsedBody && typeof parsedBody.message === "string" && parsedBody.message) ||
+      `FASHN request failed (${response.status})`
 
-const fetchPredictionStatus = async (predictionId: string) => {
-  if (!REPLICATE_API_TOKEN) {
-    throw new Error('Replicate API token missing')
+    throw new Error(errorMessage)
   }
 
-  const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-    headers: {
-      Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    cache: 'no-store',
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(errorText || `Replicate status failed (${response.status})`)
+  if (!parsedBody.success || typeof parsedBody.output_url !== "string") {
+    throw new Error("Invalid response from FASHN AI.")
   }
 
-  return (await response.json()) as {
-    status: string
-    output?: unknown
-    error?: string
-  }
-}
-
-const extractOutputUrl = (output: unknown): string | null => {
-  if (Array.isArray(output) && typeof output[0] === 'string') {
-    return output[0]
-  }
-
-  if (typeof output === 'string') {
-    return output
-  }
-
-  return null
+  return parsedBody.output_url
 }
 
 export async function POST(request: Request) {
   try {
+    let parsedPayload: ParsedPayload
+
+    try {
+      parsedPayload = await parseRequestPayload(request)
+    } catch (error) {
+      if ((error as Error).message === "INVALID_IMAGE_URL" || (error as Error).message === "INVALID_PAYLOAD") {
+        return NextResponse.json({ error: "Invalid input" }, { status: 400 })
+      }
+      console.error("[generate] payload parsing failed", error)
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 })
+    }
+
+    const isFashnEnabled = process.env.FASHN_ENABLED === "true"
+
+    if (!isFashnEnabled) {
+      if (!isProduction) {
+        console.log("[generate] Mock mode active — skipping credits and FASHN API.")
+        console.log("[generate] Mock mode active — returning static placeholder image")
+      }
+
+      return NextResponse.json({
+        success: true,
+        outputUrl: "https://placehold.co/600x800/111111/9FFF57?text=Mock+ModelCast+Shot",
+        creditsRemaining: 99,
+      })
+    }
+
     const supabase = createRouteHandlerClient({ cookies })
     const {
       data: { user },
@@ -169,120 +195,68 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.warn('[generate] Unauthorized request', authError)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    let parsedPayload: ParsedPayload
-
-    try {
-      parsedPayload = await parseRequestPayload(request)
-    } catch (error) {
-      if ((error as Error).message === 'INVALID_IMAGE_URL' || (error as Error).message === 'INVALID_PAYLOAD') {
-        return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
-      }
-      console.error('[generate] payload parsing failed', error)
-      return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
+      console.warn("[generate] Unauthorized request", authError)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', user.id)
+      .from("profiles")
+      .select("credits")
+      .eq("id", user.id)
       .maybeSingle()
 
     if (profileError) {
-      console.error('[generate] failed to fetch credits', profileError)
-      return NextResponse.json({ error: 'Unable to verify credits' }, { status: 500 })
+      console.error("[generate] failed to fetch credits", profileError)
+      return NextResponse.json({ success: false, error: "Unable to verify credits" }, { status: 500 })
     }
 
-    const credits = typeof profile?.credits === 'number' ? profile.credits : 0
+    const credits = typeof profile?.credits === "number" ? profile.credits : 0
 
     if (credits <= 0) {
-      return NextResponse.json({ error: 'Out of credits' }, { status: 402 })
+      return NextResponse.json({ error: "Out of credits" }, { status: 402 })
     }
 
-    if (!REPLICATE_ENABLED) {
-      const mockResponse = {
-        success: true,
-        mock: true,
-        outputUrl: '/placeholder/mock-preview.png',
-        outputUrls: ['/placeholder/mock-preview.png'],
-        status: 'succeeded',
-        creditsUsed: 1,
-      }
+    let outputUrl: string
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ credits: credits - 1 })
-        .eq('id', user.id)
-
-      if (updateError) {
-        console.error('[generate] failed to decrement credits (mock)', updateError)
-        return NextResponse.json({ error: 'Unable to update credits' }, { status: 500 })
-      }
-
-      return NextResponse.json(mockResponse)
+    try {
+      outputUrl = await callFashn({
+        imageUrl: parsedPayload.imageUrl,
+        clothingImageUrl: parsedPayload.clothingImageUrl,
+        style: parsedPayload.style,
+        gender: parsedPayload.gender,
+        skinTone: parsedPayload.skinTone,
+      })
+    } catch (error) {
+      console.error("[generate] FASHN request failed", error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Generation failed",
+        },
+        { status: 500 },
+      )
     }
 
-    const prompt = buildPrompt(parsedPayload)
-    const prediction = await callReplicate({
-      imageUrl: parsedPayload.imageUrl,
-      prompt,
+    const creditsRemaining = credits - 1
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ credits: creditsRemaining })
+      .eq("id", user.id)
+
+    if (updateError) {
+      console.error("[generate] failed to decrement credits", updateError)
+      return NextResponse.json({ success: false, error: "Unable to update credits" }, { status: 500 })
+    }
+
+    logInfo("[generate] FASHN completed", { userId: user.id, outputUrl })
+
+    return NextResponse.json({
+      success: true,
+      outputUrl,
+      creditsRemaining,
     })
-
-    logInfo('[generate] replicate start', { predictionId: prediction.id })
-
-    const start = Date.now()
-    let attempt = 0
-
-    while (Date.now() - start < POLL_TIMEOUT_MS) {
-      const status = await fetchPredictionStatus(prediction.id)
-
-      if (status.status === 'succeeded') {
-        const outputUrl = extractOutputUrl(status.output)
-
-        if (!outputUrl) {
-          throw new Error('Prediction succeeded without output URL')
-        }
-
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ credits: credits - 1 })
-          .eq('id', user.id)
-
-        if (updateError) {
-          console.error('[generate] failed to decrement credits', updateError)
-          return NextResponse.json({ error: 'Unable to update credits' }, { status: 500 })
-        }
-
-        logInfo('[generate] replicate completed', { predictionId: prediction.id })
-
-        return NextResponse.json({
-          success: true,
-          outputUrl,
-          outputUrls: [outputUrl],
-          creditsUsed: 1,
-        })
-      }
-
-      if (status.status === 'failed' || status.status === 'canceled') {
-        console.error('[generate] prediction failed', status)
-        return NextResponse.json(
-          { success: false, error: 'Generation failed' },
-          { status: 500 },
-        )
-      }
-
-      const delay = POLL_DELAYS[Math.min(attempt, POLL_DELAYS.length - 1)]
-      attempt += 1
-      await sleep(delay)
-    }
-
-    console.error('[generate] prediction timeout exceeded', { predictionId: prediction.id })
-    return NextResponse.json({ success: false, error: 'Generation failed' }, { status: 500 })
   } catch (error) {
-    console.error('[generate] server error', error)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    console.error("[generate] server error", error)
+    return NextResponse.json({ success: false, error: "Generation failed" }, { status: 500 })
   }
 }
