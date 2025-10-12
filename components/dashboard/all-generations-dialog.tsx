@@ -46,8 +46,8 @@ export function AllGenerationsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[70vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 md:grid-cols-4">
+        <div className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <div className="grid grid-cols-1 gap-4 overflow-y-auto max-h-[70vh] p-2 sm:grid-cols-2">
             {images.length === 0 ? (
               <div className={`col-span-full ${cardBaseClass}`}>
                 <Image
@@ -96,16 +96,14 @@ export function AllGenerationsDialog({
                           <p className="text-[11px] uppercase tracking-wide text-neutral-600">
                             {image.mode === 'preview' ? 'Preview Result (Watermarked)' : 'HD Result'}
                           </p>
-                          <div className="flex justify-center gap-2">
-                            <button
-                              type="button"
-                              className="inline-flex items-center rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-black transition-colors duration-200 ease-out hover:bg-neutral-200"
-                              onClick={() => onDownload(image.url)}
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            className="mt-2 mx-auto inline-flex w-[70%] items-center justify-center rounded-xl bg-white py-1.5 text-xs text-black transition-colors duration-200 ease-out hover:bg-neutral-200 sm:w-[60%]"
+                            onClick={() => onDownload(image.url)}
+                            aria-label="Download"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
                         </>
                       )}
                     </div>
