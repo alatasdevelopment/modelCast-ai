@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ChangeEvent, type DragEvent, useEffect, useRef, useState } from 'react'
 import { Loader2, Sparkles, Upload, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -27,7 +27,8 @@ export interface GenerationSettings {
   ageGroup: string
   skinTone: string
   aspectRatio: string
-  imageUrl: string
+  garmentImageUrl: string
+  modelImageUrl: string
 }
 
 interface ModelGeneratorProps {
@@ -51,7 +52,19 @@ const skinTones = [
   { id: 'dark', color: '#6B4423' },
 ]
 
-type GenerationFormState = Omit<GenerationSettings, 'imageUrl'>
+type GenerationFormState = Omit<GenerationSettings, 'garmentImageUrl' | 'modelImageUrl'>
+type UploadSlot = 'garment' | 'model'
+
+const uploadCopy: Record<UploadSlot, { title: string; subtitle: string }> = {
+  garment: {
+    title: 'Upload Garment Image',
+    subtitle: 'Use a product cut-out on transparent or plain background.',
+  },
+  model: {
+    title: 'Upload Model Image',
+    subtitle: 'Add the reference model photo to dress up.',
+  },
+}
 
 export function ModelGenerator({
   onGenerate,
@@ -66,44 +79,71 @@ export function ModelGenerator({
     skinTone: 'medium',
     aspectRatio: '3:4',
   })
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [cloudinaryAsset, setCloudinaryAsset] = useState<CloudinaryUploadResult | null>(null)
+
+  const [garmentPreviewUrl, setGarmentPreviewUrl] = useState<string | null>(null)
+  const [modelPreviewUrl, setModelPreviewUrl] = useState<string | null>(null)
+  const [garmentAsset, setGarmentAsset] = useState<CloudinaryUploadResult | null>(null)
+  const [modelAsset, setModelAsset] = useState<CloudinaryUploadResult | null>(null)
+  const [uploadingState, setUploadingState] = useState<{ garment: boolean; model: boolean }>({
+    garment: false,
+    model: false,
+  })
   const [isGenerating, setIsGenerating] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const deleteTokenRef = useRef<string | null>(null)
-  const deleteTimerRef = useRef<number | null>(null)
+
+  const garmentFileInputRef = useRef<HTMLInputElement>(null)
+  const modelFileInputRef = useRef<HTMLInputElement>(null)
+  const garmentDeleteTokenRef = useRef<string | null>(null)
+  const modelDeleteTokenRef = useRef<string | null>(null)
+  const garmentDeleteTimerRef = useRef<number | null>(null)
+  const modelDeleteTimerRef = useRef<number | null>(null)
 
   const AUTO_DELETE_DELAY_MS = 30 * 60 * 1000
 
-  const clearDeleteTimer = () => {
+  const getFileInputRef = (slot: UploadSlot) =>
+    slot === 'garment' ? garmentFileInputRef : modelFileInputRef
+  const getDeleteTokenRef = (slot: UploadSlot) =>
+    slot === 'garment' ? garmentDeleteTokenRef : modelDeleteTokenRef
+  const getDeleteTimerRef = (slot: UploadSlot) =>
+    slot === 'garment' ? garmentDeleteTimerRef : modelDeleteTimerRef
+  const setPreviewForSlot = (slot: UploadSlot, value: string | null) =>
+    slot === 'garment' ? setGarmentPreviewUrl(value) : setModelPreviewUrl(value)
+  const setAssetForSlot = (slot: UploadSlot, value: CloudinaryUploadResult | null) =>
+    slot === 'garment' ? setGarmentAsset(value) : setModelAsset(value)
+  const getPreviewForSlot = (slot: UploadSlot) =>
+    slot === 'garment' ? garmentPreviewUrl : modelPreviewUrl
+  const getAssetForSlot = (slot: UploadSlot) => (slot === 'garment' ? garmentAsset : modelAsset)
+
+  const clearDeleteTimer = (slot: UploadSlot) => {
     if (typeof window === 'undefined') return
-    if (deleteTimerRef.current !== null) {
-      window.clearTimeout(deleteTimerRef.current)
-      deleteTimerRef.current = null
+    const timerRef = getDeleteTimerRef(slot)
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
     }
   }
 
-  const scheduleAutoDeletion = (deleteToken?: string | null) => {
-    clearDeleteTimer()
-
+  const scheduleAutoDeletion = (slot: UploadSlot, deleteToken?: string | null) => {
+    clearDeleteTimer(slot)
     if (!deleteToken || typeof window === 'undefined') {
       return
     }
 
-    deleteTimerRef.current = window.setTimeout(() => {
+    const timerRef = getDeleteTimerRef(slot)
+    timerRef.current = window.setTimeout(() => {
       deleteFromCloudinary(deleteToken).catch((error) => {
         console.error('Failed to auto-delete Cloudinary upload', error)
       })
-      deleteTokenRef.current = null
-      deleteTimerRef.current = null
+      const tokenRef = getDeleteTokenRef(slot)
+      tokenRef.current = null
+      timerRef.current = null
     }, AUTO_DELETE_DELAY_MS)
   }
 
-  const deleteExistingAsset = async () => {
-    clearDeleteTimer()
-    const deleteToken = deleteTokenRef.current
-    deleteTokenRef.current = null
+  const deleteExistingAsset = async (slot: UploadSlot) => {
+    clearDeleteTimer(slot)
+    const tokenRef = getDeleteTokenRef(slot)
+    const deleteToken = tokenRef.current
+    tokenRef.current = null
 
     if (deleteToken) {
       try {
@@ -116,17 +156,21 @@ export function ModelGenerator({
 
   useEffect(() => {
     return () => {
-      clearDeleteTimer()
-      const deleteToken = deleteTokenRef.current
-      if (deleteToken) {
-        deleteFromCloudinary(deleteToken).catch((error) => {
-          console.error('Failed to delete Cloudinary upload on cleanup', error)
-        })
-      }
+      ;(['garment', 'model'] as UploadSlot[]).forEach((slot) => {
+        clearDeleteTimer(slot)
+        const tokenRef = getDeleteTokenRef(slot)
+        const deleteToken = tokenRef.current
+        tokenRef.current = null
+        if (deleteToken) {
+          deleteFromCloudinary(deleteToken).catch((error) => {
+            console.error('Failed to delete Cloudinary upload on cleanup', error)
+          })
+        }
+      })
     }
   }, [])
 
-  const handleFileSelect = async (file: File) => {
+  const handleFileSelect = async (slot: UploadSlot, file: File) => {
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Please upload an image file',
@@ -136,56 +180,62 @@ export function ModelGenerator({
       return
     }
 
-    setIsUploading(true)
-    setPreviewUrl(null)
-    setCloudinaryAsset(null)
+    setUploadingState((state) => ({ ...state, [slot]: true }))
+    setPreviewForSlot(slot, null)
+    setAssetForSlot(slot, null)
 
     try {
-      await deleteExistingAsset()
+      await deleteExistingAsset(slot)
       const result = await uploadToCloudinary(file)
-      setCloudinaryAsset(result)
-      setPreviewUrl(result.secureUrl)
-      deleteTokenRef.current = result.deleteToken ?? null
-      scheduleAutoDeletion(result.deleteToken)
+      setAssetForSlot(slot, result)
+      setPreviewForSlot(slot, result.secureUrl)
+      const tokenRef = getDeleteTokenRef(slot)
+      tokenRef.current = result.deleteToken ?? null
+      scheduleAutoDeletion(slot, result.deleteToken)
     } catch (error) {
       console.error('Cloudinary upload failed', error)
       toast({
         title: 'Upload failed',
-        description: 'Could not upload your product image. Please try again.',
+        description: 'Could not upload your image. Please try again.',
         variant: 'destructive',
       })
-      setCloudinaryAsset(null)
-      setPreviewUrl(null)
-      deleteTokenRef.current = null
+      setAssetForSlot(slot, null)
+      setPreviewForSlot(slot, null)
+      const tokenRef = getDeleteTokenRef(slot)
+      tokenRef.current = null
     } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+      const fileInput = getFileInputRef(slot).current
+      if (fileInput) {
+        fileInput.value = ''
       }
-      setIsUploading(false)
+      setUploadingState((state) => ({ ...state, [slot]: false }))
     }
   }
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (isUploading) return
+  const handleFileChange = (slot: UploadSlot, event: ChangeEvent<HTMLInputElement>) => {
+    if (uploadingState.garment || uploadingState.model) return
     const file = event.target.files?.[0]
-    if (file) void handleFileSelect(file)
+    if (file) void handleFileSelect(slot, file)
   }
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (slot: UploadSlot, event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
-    if (isUploading) return
+    if (uploadingState.garment || uploadingState.model) return
     const file = event.dataTransfer.files?.[0]
-    if (file) void handleFileSelect(file)
+    if (file) void handleFileSelect(slot, file)
   }
 
-  const handleRemoveImage = async () => {
-    setPreviewUrl(null)
-    setCloudinaryAsset(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+  const handleRemoveImage = async (slot: UploadSlot) => {
+    setPreviewForSlot(slot, null)
+    setAssetForSlot(slot, null)
+    const fileInput = getFileInputRef(slot).current
+    if (fileInput) {
+      fileInput.value = ''
     }
-    await deleteExistingAsset()
+    await deleteExistingAsset(slot)
   }
+
+  const isUploading = uploadingState.garment || uploadingState.model
 
   const handleGenerate = async () => {
     if (isGenerating) return
@@ -202,16 +252,16 @@ export function ModelGenerator({
     if (isUploading) {
       toast({
         title: 'Upload in progress',
-        description: 'Wait until your product image finishes uploading.',
+        description: 'Wait until both images finish uploading.',
         variant: 'destructive',
       })
       return
     }
 
-    if (!cloudinaryAsset?.secureUrl) {
+    if (!garmentAsset?.secureUrl || !modelAsset?.secureUrl) {
       toast({
-        title: 'Product image required',
-        description: 'Upload a product photo before generating.',
+        title: 'Images required',
+        description: 'Upload both the garment/product photo and the model reference photo.',
         variant: 'destructive',
       })
       return
@@ -221,7 +271,11 @@ export function ModelGenerator({
     setIsGenerating(true)
 
     try {
-      await onGenerate({ ...formValues, imageUrl: cloudinaryAsset.secureUrl })
+      await onGenerate({
+        ...formValues,
+        garmentImageUrl: garmentAsset.secureUrl,
+        modelImageUrl: modelAsset.secureUrl,
+      })
     } catch (error) {
       console.error('Model generation failed', error)
     } finally {
@@ -241,6 +295,82 @@ export function ModelGenerator({
     }
   }
 
+  const renderUploadSection = (slot: UploadSlot) => {
+    const previewUrl = getPreviewForSlot(slot)
+    const isUploadingSlot = uploadingState[slot]
+    const { title, subtitle } = uploadCopy[slot]
+
+    return (
+      <div className="space-y-2.5">
+        <Label className="text-sm font-medium text-neutral-400">{title}</Label>
+        <p className="text-xs text-neutral-500">{subtitle}</p>
+        <div
+          onDrop={(event) => handleDrop(slot, event)}
+          onDragOver={(event) => event.preventDefault()}
+          onClick={() => {
+            if (!isUploading) {
+              getFileInputRef(slot).current?.click()
+            }
+          }}
+          className={`relative flex ${isUploading ? 'cursor-progress opacity-80' : 'cursor-pointer'} flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-colors sm:p-7 ${
+            previewUrl
+              ? 'border-[var(--brand-green)]/55 bg-[var(--brand-green-muted)] shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+              : 'border-white/12 bg-white/[0.025] hover:border-white/25 hover:bg-white/[0.05]'
+          }`}
+        >
+          {!previewUrl && !isUploadingSlot ? (
+            <div
+              className="pointer-events-none absolute inset-0 rounded-2xl border border-white/[0.04] bg-[radial-gradient(circle_at_20%_20%,rgba(159,255,87,0.08),transparent_55%),radial-gradient(circle_at_80%_30%,rgba(159,255,87,0.05),transparent_60%),linear-gradient(135deg,rgba(255,255,255,0.05)_0%,rgba(15,15,15,0.55)_90%)]"
+              aria-hidden
+            />
+          ) : null}
+          {isUploadingSlot ? (
+            <div className="relative z-10 flex flex-col items-center gap-3 text-neutral-300">
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--brand-green)]" />
+              <p className="text-sm text-neutral-200">Uploading to secure storage…</p>
+            </div>
+          ) : previewUrl ? (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewUrl}
+                alt="Uploaded preview"
+                className="max-h-44 w-auto rounded-xl object-cover shadow-[0_0_20px_rgba(159,255,87,0.16)]"
+              />
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void handleRemoveImage(slot)
+                }}
+                className="absolute -right-2 -top-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm transition hover:bg-destructive/90"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="relative z-10 flex flex-col items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-black/30 backdrop-blur">
+                <Upload className="h-7 w-7 text-neutral-300" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-base font-medium text-neutral-100">Click or drag to upload</p>
+                <p className="text-sm text-neutral-400">Supports PNG, JPG, WEBP up to 10MB.</p>
+              </div>
+            </div>
+          )}
+          <input
+            ref={getFileInputRef(slot)}
+            type="file"
+            accept="image/*"
+            onChange={(event) => handleFileChange(slot, event)}
+            className="hidden"
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <Card className="relative gap-6 overflow-hidden rounded-2xl border-white/12 bg-[#111111]/60 p-5 shadow-[0_0_32px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-7 lg:p-9">
       <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(159,255,87,0.55)] to-transparent" />
@@ -255,69 +385,10 @@ export function ModelGenerator({
         </div>
       </div>
 
-      <div className="space-y-5">
-        <div className="space-y-2.5">
-          <Label className="text-sm font-medium text-neutral-400">Upload Product Image</Label>
-          <div
-            onDrop={handleDrop}
-            onDragOver={(event) => event.preventDefault()}
-            onClick={() => {
-              if (!isUploading) {
-                fileInputRef.current?.click()
-              }
-            }}
-            className={`relative flex ${isUploading ? 'cursor-progress opacity-80' : 'cursor-pointer'} flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-colors sm:p-7 ${
-              previewUrl
-                ? 'border-[var(--brand-green)]/55 bg-[var(--brand-green-muted)] shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
-                : 'border-white/12 bg-white/[0.025] hover:border-white/25 hover:bg-white/[0.05]'
-            }`}
-          >
-            {!previewUrl && !isUploading ? (
-              <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/[0.04] bg-[radial-gradient(circle_at_20%_20%,rgba(159,255,87,0.08),transparent_55%),radial-gradient(circle_at_80%_30%,rgba(159,255,87,0.05),transparent_60%),linear-gradient(135deg,rgba(255,255,255,0.05)_0%,rgba(15,15,15,0.55)_90%)]" aria-hidden />
-            ) : null}
-            {isUploading ? (
-              <div className="flex flex-col items-center gap-3 text-neutral-300">
-                <Loader2 className="h-6 w-6 animate-spin text-[var(--brand-green)]" />
-                <p className="text-sm text-neutral-200">Uploading to secure storage…</p>
-              </div>
-            ) : previewUrl ? (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previewUrl}
-                  alt="Product preview"
-                  className="max-h-44 w-auto rounded-xl object-cover shadow-[0_0_20px_rgba(159,255,87,0.16)]"
-                />
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    void handleRemoveImage()
-                  }}
-                  className="absolute -right-2 -top-2 rounded-full bg-destructive p-1 text-destructive-foreground shadow-sm transition hover:bg-destructive/90"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="relative z-10 flex flex-col items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-black/30 backdrop-blur">
-                  <Upload className="h-7 w-7 text-neutral-300" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-base font-medium text-neutral-100">Click or drag to upload</p>
-                  <p className="text-sm text-neutral-400">Supports PNG, JPG, WEBP up to 10MB.</p>
-                </div>
-              </div>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-          </div>
+      <div className="space-y-6">
+        <div className="grid gap-6 lg:grid-cols-2">
+          {renderUploadSection('garment')}
+          {renderUploadSection('model')}
         </div>
 
         <div className="space-y-2.5">
@@ -340,7 +411,9 @@ export function ModelGenerator({
                 }`}
               >
                 <RadioGroupItem value={style.id} id={style.id} className="sr-only" />
-                <span className="text-xl">{style.icon}</span>
+                <span className="text-xl" aria-hidden>
+                  {style.icon}
+                </span>
                 {style.label}
               </Label>
             ))}
@@ -445,7 +518,13 @@ export function ModelGenerator({
           <Button
             type="button"
             onClick={handleGenerate}
-            disabled={isGenerating || isUploading || !hasCredits || !cloudinaryAsset?.secureUrl}
+            disabled={
+              isGenerating ||
+              isUploading ||
+              !hasCredits ||
+              !garmentAsset?.secureUrl ||
+              !modelAsset?.secureUrl
+            }
             className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#9FFF57] px-6 text-base font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(159,255,87,0.4)] focus-visible:ring-2 focus-visible:ring-[#9FFF57] focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60"
           >
             {isGenerating ? (

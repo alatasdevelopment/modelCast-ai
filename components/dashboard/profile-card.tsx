@@ -29,6 +29,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/hooks/use-toast'
 import { getSupabaseClient } from '@/lib/supabaseClient'
+import { cn } from '@/lib/utils'
 
 interface ProfileCardProps {
   credits: number
@@ -241,7 +242,11 @@ export function ProfileCard({
 
       <Button
         type="button"
-        className="w-full justify-center rounded-xl bg-white px-4 py-3 text-sm font-semibold text-neutral-900 shadow-[0_0_16px_rgba(0,0,0,0.35)] transition hover:-translate-y-0.5 hover:bg-white/90"
+        className={cn(
+          'w-full justify-center rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-neutral-200 shadow-[0_0_16px_rgba(0,0,0,0.35)] transition-all duration-200',
+          'hover:-translate-y-0.5 hover:border-[var(--brand-green)] hover:bg-white/[0.1] hover:text-[var(--brand-green)]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2 focus-visible:ring-offset-black',
+        )}
         onClick={() => setShowLogoutDialog(true)}
         disabled={isSigningOut}
       >

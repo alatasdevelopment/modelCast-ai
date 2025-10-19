@@ -58,10 +58,10 @@ function DashboardContent() {
         return null
       }
 
-      if (!settings.imageUrl) {
+      if (!settings.garmentImageUrl || !settings.modelImageUrl) {
         toast({
-          title: "Product image missing",
-          description: "Upload your product image before generating.",
+          title: "Images required",
+          description: "Upload both the garment/product photo and the model reference photo before generating.",
           variant: "destructive",
         })
         return null
@@ -98,7 +98,8 @@ function DashboardContent() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            image: settings.imageUrl,
+            garmentImageUrl: settings.garmentImageUrl,
+            modelImageUrl: settings.modelImageUrl,
             styleType: settings.styleType,
             gender: settings.gender,
             ageGroup: settings.ageGroup,

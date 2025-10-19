@@ -13,12 +13,18 @@ import { PricingSection } from "@/components/pricing-section"
 import { StickyFooter } from "@/components/sticky-footer"
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const router = useRouter()
   const { user, isLoading, signOut } = useSupabaseAuth()
   const { toast } = useToast()
+  const desktopNavActionClass =
+    "inline-flex items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-4 py-1.5 text-sm font-medium text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--brand-green)] hover:bg-white/[0.1] hover:text-[var(--brand-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+
+  const mobileNavActionClass =
+    "w-full text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:translate-x-1 hover:bg-white/[0.08] hover:text-[var(--brand-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -185,14 +191,14 @@ export default function Home() {
               <button
                 type="button"
                 onClick={goToDashboard}
-                className="rounded-full border border-border/60 bg-background/70 px-4 py-1.5 text-sm font-semibold text-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className={cn(desktopNavActionClass, "font-semibold text-foreground")}
               >
                 Dashboard
               </button>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="rounded-full border border-border/60 px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className={cn(desktopNavActionClass, "font-medium")}
               >
                 Sign out
               </button>
@@ -201,7 +207,10 @@ export default function Home() {
             <div className="flex items-center gap-4">
               <Link
                 href="/login"
-                className="cursor-pointer text-[1.02rem] font-medium tracking-[0.02em] text-muted-foreground transition-colors hover:text-foreground"
+                className={cn(
+                  desktopNavActionClass,
+                  "cursor-pointer border-transparent bg-transparent text-[1.02rem] font-medium tracking-[0.02em]",
+                )}
               >
                 Log In
               </Link>
@@ -281,13 +290,13 @@ export default function Home() {
                   <>
                     <button
                       onClick={goToDashboard}
-                      className="rounded-lg px-4 py-3 text-lg font-medium text-foreground transition-colors hover:bg-background/50"
+                      className={cn(mobileNavActionClass, "text-foreground")}
                     >
                       Dashboard
                     </button>
                     <button
                       onClick={handleSignOut}
-                      className="rounded-lg px-4 py-3 text-lg font-medium text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground"
+                      className={mobileNavActionClass}
                     >
                       Sign out
                     </button>
@@ -297,7 +306,7 @@ export default function Home() {
                     <Link
                       href="/login"
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="cursor-pointer rounded-lg px-4 py-3 text-lg font-medium text-muted-foreground transition-colors hover:bg-background/50 hover:text-foreground"
+                      className={cn(mobileNavActionClass, "cursor-pointer")}
                     >
                       Log In
                     </Link>
