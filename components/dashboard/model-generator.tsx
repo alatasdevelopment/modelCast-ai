@@ -630,10 +630,10 @@ export function ModelGenerator({
               !garmentAsset?.secureUrl ||
               (advancedMode && !modelAsset?.secureUrl)
             }
-            className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl px-6 text-base font-semibold shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-200 ease-out focus-visible:ring-2 focus-visible:ring-[#9FFF57] focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60 ${
+            className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl px-6 text-base font-semibold transition-all duration-200 ease-out focus-visible:ring-2 focus-visible:ring-[#9FFF57] focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60 ${
               advancedMode && isPro
-                ? 'bg-[#9FFF57] text-black hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(159,255,87,0.4)]'
-                : 'bg-white/10 text-neutral-100 hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-[0_0_28px_rgba(159,255,87,0.25)]'
+                ? 'bg-[#9FFF57] text-black hover:bg-[#AEFF6B] hover:shadow-[0_8px_20px_rgba(159,255,87,0.22)]'
+                : 'bg-white/12 text-neutral-100 hover:bg-white/18 hover:shadow-[0_6px_18px_rgba(159,255,87,0.18)]'
             }`}
           >
             {isGenerating ? (

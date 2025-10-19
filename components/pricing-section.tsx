@@ -89,8 +89,8 @@ export function PricingSection() {
         return
       }
 
-      if (plan.id === "free") {
-        router.push("/auth/signin")
+      if (plan.id === 'free') {
+        router.push('/auth/signin')
         return
       }
 
@@ -101,10 +101,10 @@ export function PricingSection() {
 
       setLoadingPlan(plan.id)
       try {
-        const response = await fetch("/api/billing/checkout", {
-          method: "POST",
+        const response = await fetch('/api/billing/checkout', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({ planId: plan.id }),
         })
@@ -112,17 +112,17 @@ export function PricingSection() {
         const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null
 
         if (!response.ok || !payload?.url) {
-          const message = payload?.error ?? "Checkout session could not be created."
+          const message = payload?.error ?? 'Checkout session could not be created.'
           throw new Error(message)
         }
 
         window.location.href = payload.url
       } catch (error) {
-        console.error("[pricing] checkout initiation failed", error)
+        console.error('[pricing] checkout initiation failed', error)
         toast({
-          title: "Checkout failed",
-          description: error instanceof Error ? error.message : "Unable to reach Stripe checkout.",
-          variant: "destructive",
+          title: 'Checkout failed',
+          description: error instanceof Error ? error.message : 'Unable to reach Stripe checkout.',
+          variant: 'destructive',
         })
         setLoadingPlan(null)
       }
@@ -135,9 +135,9 @@ export function PricingSection() {
       return
     }
     if (user) {
-      router.push("/dashboard?dialog=credits")
+      router.push('/dashboard?dialog=credits')
     } else {
-      router.push("/auth/signin?intent=credits")
+      router.push('/auth/signin?intent=credits')
     }
   }, [isLoading, router, user])
 
@@ -178,7 +178,7 @@ export function PricingSection() {
 
         <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
           {pricingPlans.map((plan, index) => {
-            const formattedPrice = plan.price === 0 ? "$0" : `$${plan.price}`
+            const formattedPrice = plan.price === 0 ? '$0' : `$${plan.price}`
             const isLoadingPlan = loadingPlan === plan.id
 
             return (
@@ -191,13 +191,13 @@ export function PricingSection() {
               >
                 <Card
                   className={cn(
-                    "group relative flex h-full flex-col justify-between rounded-2xl border border-white/10 bg-[#0b0b0b]/85 p-6 transition-all duration-300 hover:translate-y-[-6px] hover:border-white/20 hover:shadow-[0_0_25px_rgba(159,255,87,0.25)] md:hover:scale-[1.035]",
+                    'relative flex h-full flex-col justify-between rounded-2xl border border-white/10 bg-[#0b0b0b]/85 p-6 transition-all duration-300 hover:translate-y-[-4px] hover:border-white/20 hover:shadow-[0_0_20px_rgba(159,255,87,0.18)]',
                     plan.highlight &&
-                      "border-[#9FFF57]/70 shadow-[0_0_28px_-6px_rgba(159,255,87,0.3)] hover:border-[#9FFF57] hover:shadow-[0_0_32px_-4px_rgba(159,255,87,0.45)]",
+                      'border-[#9FFF57]/70 shadow-[0_0_22px_-6px_rgba(159,255,87,0.28)] hover:border-[#9FFF57] hover:shadow-[0_0_26px_-4px_rgba(159,255,87,0.4)]',
                   )}
                 >
                   {plan.highlight && plan.badge ? (
-                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 border border-[#9FFF57]/40 bg-[#121212]/80 text-[#9FFF57] shadow-[0_0_20px_rgba(159,255,87,0.2)]">
+                    <Badge className="pointer-events-none select-none absolute -top-3 left-1/2 -translate-x-1/2 border border-[#9FFF57]/40 bg-[#121212]/80 text-[#9FFF57] shadow-[0_0_20px_rgba(159,255,87,0.2)]">
                       {plan.badge}
                     </Badge>
                   ) : null}
@@ -231,10 +231,10 @@ export function PricingSection() {
 
                   <Button
                     className={cn(
-                      "relative mt-6 w-full overflow-hidden rounded-xl border border-white/10 py-3 text-base font-semibold transition-all duration-200 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:scale-x-0 after:bg-[#9FFF57] after:transition-transform after:duration-200 hover:after:scale-x-100",
+                      'relative mt-6 w-full overflow-hidden rounded-xl border border-white/10 py-3 text-base font-semibold transition-all duration-200 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:scale-x-0 after:bg-[#9FFF57] after:transition-transform after:duration-200 hover:after:scale-x-100',
                       plan.highlight
-                        ? "border-transparent bg-gradient-to-r from-[#9FFF57] to-[#CFFF8A] text-black shadow-[0_10px_24px_rgba(159,255,87,0.25)] hover:from-[#B4FF6E] hover:to-[#DFFF9F]"
-                        : "bg-neutral-900 text-neutral-100 hover:bg-neutral-800",
+                        ? 'border-transparent bg-gradient-to-r from-[#9FFF57] to-[#CFFF8A] text-black shadow-[0_10px_24px_rgba(159,255,87,0.25)] hover:from-[#B4FF6E] hover:to-[#DFFF9F]'
+                        : 'bg-neutral-900 text-neutral-100 hover:bg-neutral-800',
                     )}
                     disabled={isLoading || isLoadingPlan}
                     onClick={() => handlePlanSelect(plan)}

@@ -3,6 +3,14 @@ import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { createClient } from "@supabase/supabase-js"
 
+import {
+  applyWatermark,
+  buildFashnInputs,
+  buildPrompt,
+  enforceInputWhitelist,
+  getModelCandidates,
+} from "@/lib/fashn"
+
 const isProduction = process.env.NODE_ENV === "production"
 
 const FASHN_BASE_URL = process.env.FASHN_API_BASE?.replace(/\/+$/, "") ?? "https://api.fashn.ai/v1"
@@ -236,89 +244,6 @@ const normalizeOptions = (payload: GenerateRequestBody): GenerateOptions => {
   }
 }
 
-const buildPrompt = (options: GenerateOptions): string => {
-  const parts: string[] = []
-
-  switch (options.modelType) {
-    case "fashion":
-      parts.push("full-body fashion model photo")
-      break
-    case "portrait":
-      parts.push("professional studio portrait")
-      break
-    case "street":
-      parts.push("street style fashion photo")
-      break
-    default:
-      if (options.modelType) {
-        parts.push(`${options.modelType} fashion photo`)
-      }
-  }
-
-  switch (options.environment) {
-    case "outdoor":
-      parts.push("shot outdoors with natural lighting")
-      break
-    case "studio":
-      parts.push("shot in a studio with neutral background")
-      break
-    case "urban":
-      parts.push("urban city background")
-      break
-    default:
-      if (options.environment) {
-        parts.push(`${options.environment} background`)
-      }
-  }
-
-  switch (options.ageGroup) {
-    case "young":
-      parts.push("young adult model")
-      break
-    case "middle-aged":
-      parts.push("middle-aged person")
-      break
-    case "senior":
-      parts.push("elderly person")
-      break
-    default:
-      if (options.ageGroup) {
-        parts.push(`${options.ageGroup} model`)
-      }
-  }
-
-  if (options.gender) {
-    parts.push(options.gender)
-  }
-
-  if (options.style) {
-    parts.push(`${options.style} outfit`)
-  }
-
-  if (options.skinTone) {
-    parts.push(`${options.skinTone} skin tone`)
-  }
-
-  if (parts.length === 0) {
-    parts.push("professional fashion photography")
-  }
-
-  return parts.join(", ")
-}
-
-const applyWatermark = (url: string): string => {
-  if (!url.includes("/upload/")) {
-    return url
-  }
-  if (url.includes("/upload/l_modelcast_watermark")) {
-    return url
-  }
-  return url.replace(
-    "/upload/",
-    "/upload/l_modelcast_watermark,o_35,g_south_east,x_10,y_10/",
-  )
-}
-
 const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => {
   let payload: GenerateRequestBody
 
@@ -394,24 +319,36 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedP
     console.log("[generate] Prompt context", prompt)
   }
 
-  const modelCandidates = hasModelImage ? ["tryon-v1.6", "tryon-v1.5"] : ["product-to-model"]
+  const modelCandidates = getModelCandidates(hasModelImage)
   let lastError: unknown = null
 
   for (const modelName of modelCandidates) {
-    const inputs = hasModelImage
-      ? {
-          model_image: modelImageUrl,
-          garment_image: garmentImageUrl,
-          output_format: "png",
-        }
-      : {
-          product_image: garmentImageUrl,
-          output_format: "png",
-        }
+    let inputs: ReturnType<typeof buildFashnInputs>
+    try {
+      inputs = buildFashnInputs(modelName, {
+        garmentImageUrl,
+        modelImageUrl,
+        prompt,
+      })
+    } catch (error) {
+      lastError = error
+      continue
+    }
+
+    const sanitizedInputs = enforceInputWhitelist(modelName, inputs)
+    const removedKeys = Object.keys(inputs).filter((key) => !(key in sanitizedInputs))
+
+    if (removedKeys.length > 0) {
+      console.warn(`[generate] Dropped unsupported FASHN input keys for ${modelName}`, removedKeys)
+    }
+
+    if (!isProduction) {
+      console.log("[generate] FASHN inputs", { model: modelName, inputs: sanitizedInputs })
+    }
 
     const runRequestPayload = {
       model_name: modelName,
-      inputs,
+      inputs: sanitizedInputs,
     }
 
     if (!isProduction) {
@@ -579,6 +516,14 @@ export async function POST(request: Request) {
     console.error("[generate] Missing Supabase environment variables.")
     return NextResponse.json({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
   }
+
+  console.log("[generate] env status", {
+    hasSupabaseUrl: Boolean(SUPABASE_URL),
+    hasSupabaseAnon: Boolean(SUPABASE_ANON_KEY),
+    hasSupabaseServiceRole: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+    hasFashnKey: Boolean(FASHN_API_KEY),
+    fashnEnabled: FASHN_ENABLED,
+  })
 
   const cookieStore = await cookies()
   let parsedPayload: ParsedPayload
