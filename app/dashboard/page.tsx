@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
@@ -31,6 +31,7 @@ function DashboardContent() {
   const FREE_TIER_MAX = 2
   const MAX_CREDITS = 10
   const [credits, setCredits] = useState(FREE_TIER_MAX)
+  const [isPro, setIsPro] = useState(false)
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -45,9 +46,45 @@ function DashboardContent() {
 
   const handleUpgradeClick = useCallback(() => setShowUpgradeModal(true), [])
 
+  useEffect(() => {
+    let isMounted = true
+    const fetchProfile = async () => {
+      if (!user?.id) return
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("credits, is_pro")
+        .eq("id", user.id)
+        .maybeSingle()
+
+      if (error) {
+        console.error("[dashboard] failed to load profile", error)
+        toast({
+          title: "Profile data unavailable",
+          description: "We couldn't load your plan info. Some features may be limited.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (isMounted && data) {
+        if (typeof data.credits === "number") {
+          setCredits(data.credits)
+        }
+        setIsPro(Boolean(data.is_pro))
+      }
+    }
+
+    void fetchProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [supabase, toast, user?.id])
+
   const handleGenerate = useCallback(
     async (settings: GenerationSettings): Promise<string | null> => {
-      const isFreeMode = credits <= FREE_TIER_MAX
+      const isAdvancedMode = settings.mode === "advanced"
 
       if (credits <= 0) {
         toast({
@@ -58,10 +95,19 @@ function DashboardContent() {
         return null
       }
 
-      if (!settings.garmentImageUrl || !settings.modelImageUrl) {
+      if (!settings.garmentImageUrl) {
         toast({
-          title: "Images required",
-          description: "Upload both the garment/product photo and the model reference photo before generating.",
+          title: "Garment image required",
+          description: "Upload the garment photo before generating.",
+          variant: "destructive",
+        })
+        return null
+      }
+
+      if (isAdvancedMode && !settings.modelImageUrl) {
+        toast({
+          title: "Model image required",
+          description: "Upload your model reference or switch to Basic mode.",
           variant: "destructive",
         })
         return null
@@ -71,8 +117,8 @@ function DashboardContent() {
       let latestOutputUrl: string | null = null
       setIsGenerating(true)
       toast({
-        title: "Generating your model shot…",
-        description: "Hang tight while we style your product.",
+        title: "Processing your AI try-on…",
+        description: "We’ll ping you as soon as your look is ready.",
         duration: 3000,
       })
 
@@ -92,21 +138,26 @@ function DashboardContent() {
           return null
         }
 
+        const requestBody: Record<string, unknown> = {
+          garmentImageUrl: settings.garmentImageUrl,
+          styleType: settings.styleType,
+          gender: settings.gender,
+          ageGroup: settings.ageGroup,
+          skinTone: settings.skinTone,
+          aspectRatio: settings.aspectRatio,
+          mode: settings.mode,
+        }
+
+        if (isAdvancedMode && settings.modelImageUrl) {
+          requestBody.modelImageUrl = settings.modelImageUrl
+        }
+
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            garmentImageUrl: settings.garmentImageUrl,
-            modelImageUrl: settings.modelImageUrl,
-            styleType: settings.styleType,
-            gender: settings.gender,
-            ageGroup: settings.ageGroup,
-            skinTone: settings.skinTone,
-            aspectRatio: settings.aspectRatio,
-            isFreePreview: isFreeMode,
-          }),
+          body: JSON.stringify(requestBody),
           credentials: "include",
         })
 
@@ -128,6 +179,15 @@ function DashboardContent() {
           toast({
             title: "Out of credits",
             description: "You’ve used all your credits. Upgrade to continue generating.",
+            variant: "destructive",
+          })
+          return null
+        }
+
+        if (response.status === 403) {
+          toast({
+            title: "Pro plan required",
+            description: "Upgrade to unlock dual-image Pro try-ons.",
             variant: "destructive",
           })
           return null
@@ -170,7 +230,7 @@ function DashboardContent() {
         const outputUrl = payload.outputUrl
         latestOutputUrl = outputUrl
 
-        const mode = isFreeMode ? "preview" : "hd"
+        const mode = isAdvancedMode ? "hd" : "preview"
         const outputUrls = [outputUrl]
 
         const newImage: GeneratedImage = {
@@ -251,8 +311,10 @@ function DashboardContent() {
     }
   }, [router, signOut, toast])
 
-  const currentModeLabel = credits <= FREE_TIER_MAX ? "Preview Mode (1 image, watermarked)" : "HD Mode (2 images)"
-  const displayMaxCredits = credits <= FREE_TIER_MAX ? FREE_TIER_MAX : MAX_CREDITS
+  const currentModeLabel = isPro
+    ? "Pro Mode (dual image try-on unlocked)"
+    : "Basic Mode (AI model will wear your garment)"
+  const displayMaxCredits = isPro ? MAX_CREDITS : FREE_TIER_MAX
   const latestImage = generatedImages[0] ?? null
 
   return (
@@ -270,6 +332,7 @@ function DashboardContent() {
             hasCredits={credits > 0}
             modeLabel={currentModeLabel}
             onUpgradeClick={handleUpgradeClick}
+            isPro={isPro}
           />
         </section>
 

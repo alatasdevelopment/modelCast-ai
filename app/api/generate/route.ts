@@ -39,8 +39,10 @@ type GenerateOptions = {
 interface GenerateRequestBody {
   imageUrl?: string
   image?: string
+  modelImage?: string
   modelImageUrl?: string
   model_image?: string
+  garmentImage?: string
   garmentImageUrl?: string
   garment_image?: string
   options?: Record<string, unknown>
@@ -53,12 +55,14 @@ interface GenerateRequestBody {
   age?: string
   tone?: string
   skinTone?: string
+  mode?: string
 }
 
 interface ParsedPayload {
-  modelImageUrl: string
   garmentImageUrl: string
+  modelImageUrl?: string
   options: GenerateOptions
+  mode?: string
 }
 
 interface FashnRunResponse {
@@ -302,6 +306,19 @@ const buildPrompt = (options: GenerateOptions): string => {
   return parts.join(", ")
 }
 
+const applyWatermark = (url: string): string => {
+  if (!url.includes("/upload/")) {
+    return url
+  }
+  if (url.includes("/upload/l_modelcast_watermark")) {
+    return url
+  }
+  return url.replace(
+    "/upload/",
+    "/upload/l_modelcast_watermark,o_35,g_south_east,x_10,y_10/",
+  )
+}
+
 const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => {
   let payload: GenerateRequestBody
 
@@ -317,6 +334,7 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
   const modelImageUrl =
     normalizeUrl(payload.modelImageUrl) ??
     normalizeUrl(payload.model_image) ??
+    normalizeUrl(payload.modelImage) ??
     normalizeUrl(
       typeof payload.options === "object" && payload.options !== null
         ? (payload.options as Record<string, unknown>).modelImageUrl
@@ -326,21 +344,34 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
   const garmentImageUrl =
     normalizeUrl(payload.garmentImageUrl) ??
     normalizeUrl(payload.garment_image) ??
+    normalizeUrl(payload.garmentImage) ??
     normalizeUrl(payload.imageUrl) ??
     normalizeUrl(payload.image)
 
-  if (!modelImageUrl || !garmentImageUrl) {
-    throw new Error("MISSING_REQUIRED_IMAGES")
+  if (!garmentImageUrl) {
+    throw new Error("MISSING_GARMENT_IMAGE")
   }
 
-  if (!modelImageUrl.startsWith(CLOUDINARY_PREFIX) || !garmentImageUrl.startsWith(CLOUDINARY_PREFIX)) {
+  if (!garmentImageUrl.startsWith(CLOUDINARY_PREFIX)) {
     throw new Error("INVALID_IMAGE_URL")
+  }
+
+  if (modelImageUrl && !modelImageUrl.startsWith(CLOUDINARY_PREFIX)) {
+    throw new Error("INVALID_IMAGE_URL")
+  }
+
+  const rawMode = sanitizeString(payload.mode)
+  const mode = rawMode === "advanced" || rawMode === "basic" ? rawMode : undefined
+
+  if (mode === "advanced" && !modelImageUrl) {
+    throw new Error("ADVANCED_MODE_REQUIRES_MODEL_IMAGE")
   }
 
   return {
     modelImageUrl,
     garmentImageUrl,
     options: normalizeOptions(payload),
+    mode,
   }
 }
 
@@ -351,11 +382,8 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedP
     throw new Error("FASHN_API_KEY_MISSING")
   }
 
-  const requestBody = {
-    model_image: modelImageUrl,
-    garment_image: garmentImageUrl,
-    output_format: "png",
-  }
+  const hasModelImage = typeof modelImageUrl === "string" && modelImageUrl.length > 0
+
   const requestHeaders = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${FASHN_API_KEY}`,
@@ -366,13 +394,24 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedP
     console.log("[generate] Prompt context", prompt)
   }
 
-  const modelCandidates = ["tryon-v1.6", "tryon-v1.5"]
+  const modelCandidates = hasModelImage ? ["tryon-v1.6", "tryon-v1.5"] : ["product-to-model"]
   let lastError: unknown = null
 
   for (const modelName of modelCandidates) {
+    const inputs = hasModelImage
+      ? {
+          model_image: modelImageUrl,
+          garment_image: garmentImageUrl,
+          output_format: "png",
+        }
+      : {
+          product_image: garmentImageUrl,
+          output_format: "png",
+        }
+
     const runRequestPayload = {
       model_name: modelName,
-      inputs: requestBody,
+      inputs,
     }
 
     if (!isProduction) {
@@ -548,17 +587,29 @@ export async function POST(request: Request) {
     parsedPayload = await parseRequestPayload(request)
   } catch (error) {
     const err = error as Error
-    if (
-      err.message === "INVALID_IMAGE_URL" ||
-      err.message === "INVALID_PAYLOAD" ||
-      err.message === "MISSING_REQUIRED_IMAGES"
-    ) {
-      const errorDetail =
-        err.message === "MISSING_REQUIRED_IMAGES"
-          ? "Both model_image and garment_image URLs are required."
-          : "Invalid input"
+    let errorDetail: string | null = null
+    switch (err.message) {
+      case "INVALID_IMAGE_URL":
+        errorDetail = "Invalid image input"
+        break
+      case "INVALID_PAYLOAD":
+        errorDetail = "Invalid input"
+        break
+      case "MISSING_REQUIRED_IMAGES":
+      case "MISSING_GARMENT_IMAGE":
+        errorDetail = "Garment image is required."
+        break
+      case "ADVANCED_MODE_REQUIRES_MODEL_IMAGE":
+        errorDetail = "Model image required for advanced mode."
+        break
+      default:
+        errorDetail = null
+    }
+
+    if (errorDetail) {
       return NextResponse.json({ error: errorDetail }, { status: 400 })
     }
+
     console.error("[generate] payload parsing failed", error)
     return NextResponse.json({ error: "Invalid input" }, { status: 400 })
   }
@@ -602,7 +653,7 @@ export async function POST(request: Request) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("credits")
+    .select("credits, is_pro")
     .eq("id", user.id)
     .maybeSingle()
 
@@ -613,6 +664,16 @@ export async function POST(request: Request) {
 
   if (!profile) {
     return NextResponse.json({ success: false, error: "PROFILE_NOT_FOUND" }, { status: 404 })
+  }
+
+  const isPro = profile.is_pro === true
+
+  if (!isPro && (parsedPayload.modelImageUrl || parsedPayload.mode === "advanced")) {
+    return NextResponse.json({ error: "Pro plan required for dual-image try-on." }, { status: 403 })
+  }
+
+  if (parsedPayload.mode === "advanced" && !parsedPayload.modelImageUrl) {
+    return NextResponse.json({ error: "Model image required for advanced mode." }, { status: 400 })
   }
 
   const credits = typeof profile.credits === "number" ? profile.credits : 0
@@ -643,14 +704,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: "Unable to update credits" }, { status: 500 })
   }
 
+  const finalOutputUrl = isPro ? fashnResult.outputUrl : applyWatermark(fashnResult.outputUrl)
+
   logInfo("[generate] FASHN completed", {
     userId: user.id,
-    outputUrl: fashnResult.outputUrl,
+    outputUrl: finalOutputUrl,
   })
 
   return NextResponse.json({
     success: true,
-    outputUrl: fashnResult.outputUrl,
+    outputUrl: finalOutputUrl,
     creditsRemaining: fashnResult.creditsRemaining ?? creditsRemaining,
   })
 }

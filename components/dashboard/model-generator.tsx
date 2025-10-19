@@ -1,7 +1,8 @@
-'use client'
+"use client"
 
 import { type ChangeEvent, type DragEvent, useEffect, useRef, useState } from 'react'
-import { Loader2, Sparkles, Upload, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Loader2, Lock, Sparkles, Upload, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { toast } from '@/hooks/use-toast'
 import {
   deleteFromCloudinary,
@@ -28,7 +30,8 @@ export interface GenerationSettings {
   skinTone: string
   aspectRatio: string
   garmentImageUrl: string
-  modelImageUrl: string
+  modelImageUrl: string | null
+  mode: 'basic' | 'advanced'
 }
 
 interface ModelGeneratorProps {
@@ -36,6 +39,7 @@ interface ModelGeneratorProps {
   hasCredits: boolean
   modeLabel: string
   onUpgradeClick: () => void
+  isPro: boolean
 }
 
 const styleTypes = [
@@ -52,7 +56,7 @@ const skinTones = [
   { id: 'dark', color: '#6B4423' },
 ]
 
-type GenerationFormState = Omit<GenerationSettings, 'garmentImageUrl' | 'modelImageUrl'>
+type GenerationFormState = Omit<GenerationSettings, 'garmentImageUrl' | 'modelImageUrl' | 'mode'>
 type UploadSlot = 'garment' | 'model'
 
 const uploadCopy: Record<UploadSlot, { title: string; subtitle: string }> = {
@@ -71,7 +75,9 @@ export function ModelGenerator({
   hasCredits,
   modeLabel,
   onUpgradeClick,
+  isPro,
 }: ModelGeneratorProps) {
+  const router = useRouter()
   const [formValues, setFormValues] = useState<GenerationFormState>({
     styleType: 'street',
     gender: 'female',
@@ -89,6 +95,7 @@ export function ModelGenerator({
     model: false,
   })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [advancedMode, setAdvancedMode] = useState(isPro)
 
   const garmentFileInputRef = useRef<HTMLInputElement>(null)
   const modelFileInputRef = useRef<HTMLInputElement>(null)
@@ -170,6 +177,18 @@ export function ModelGenerator({
     }
   }, [])
 
+  useEffect(() => {
+    if (!isPro) {
+      setAdvancedMode(false)
+      setModelAsset(null)
+      setModelPreviewUrl(null)
+      const fileInput = modelFileInputRef.current
+      if (fileInput) {
+        fileInput.value = ''
+      }
+    }
+  }, [isPro])
+
   const handleFileSelect = async (slot: UploadSlot, file: File) => {
     if (!file.type.startsWith('image/')) {
       toast({
@@ -214,6 +233,7 @@ export function ModelGenerator({
 
   const handleFileChange = (slot: UploadSlot, event: ChangeEvent<HTMLInputElement>) => {
     if (uploadingState.garment || uploadingState.model) return
+    if (slot === 'model' && (!isPro || !advancedMode)) return
     const file = event.target.files?.[0]
     if (file) void handleFileSelect(slot, file)
   }
@@ -221,6 +241,7 @@ export function ModelGenerator({
   const handleDrop = (slot: UploadSlot, event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     if (uploadingState.garment || uploadingState.model) return
+    if (slot === 'model' && (!isPro || !advancedMode)) return
     const file = event.dataTransfer.files?.[0]
     if (file) void handleFileSelect(slot, file)
   }
@@ -245,7 +266,7 @@ export function ModelGenerator({
         title: 'Out of credits',
         description: 'You’ve used all your free previews. Upgrade to HD to continue.',
         variant: 'destructive',
-      })
+    })
       return
     }
 
@@ -258,10 +279,19 @@ export function ModelGenerator({
       return
     }
 
-    if (!garmentAsset?.secureUrl || !modelAsset?.secureUrl) {
+    if (!garmentAsset?.secureUrl) {
       toast({
-        title: 'Images required',
-        description: 'Upload both the garment/product photo and the model reference photo.',
+        title: 'Garment image required',
+        description: 'Upload the garment or product photo before generating.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (advancedMode && !modelAsset?.secureUrl) {
+      toast({
+        title: 'Model image required',
+        description: 'Upload your model reference photo or switch off Pro mode.',
         variant: 'destructive',
       })
       return
@@ -274,7 +304,8 @@ export function ModelGenerator({
       await onGenerate({
         ...formValues,
         garmentImageUrl: garmentAsset.secureUrl,
-        modelImageUrl: modelAsset.secureUrl,
+        modelImageUrl: advancedMode && modelAsset?.secureUrl ? modelAsset.secureUrl : null,
+        mode: advancedMode ? 'advanced' : 'basic',
       })
     } catch (error) {
       console.error('Model generation failed', error)
@@ -299,23 +330,42 @@ export function ModelGenerator({
     const previewUrl = getPreviewForSlot(slot)
     const isUploadingSlot = uploadingState[slot]
     const { title, subtitle } = uploadCopy[slot]
+    const isLocked = slot === 'model' && (!isPro || !advancedMode)
+    const showUpgradeCTA = slot === 'model' && !isPro
 
     return (
       <div className="space-y-2.5">
-        <Label className="text-sm font-medium text-neutral-400">{title}</Label>
-        <p className="text-xs text-neutral-500">{subtitle}</p>
+        <Label className="flex items-center gap-2 text-sm font-medium text-neutral-400">
+          {slot === 'model' ? (
+            <>
+              {isLocked ? <Lock className="h-3.5 w-3.5 text-neutral-500" /> : null}
+              <span>{isLocked ? 'Pro Feature – Upload your model photo' : title}</span>
+            </>
+          ) : (
+            title
+          )}
+        </Label>
+        <p className={`text-xs ${isLocked ? 'text-neutral-600' : 'text-neutral-500'}`}>
+          {isLocked ? 'Upgrade to Pro to try clothes on real models.' : subtitle}
+        </p>
         <div
           onDrop={(event) => handleDrop(slot, event)}
           onDragOver={(event) => event.preventDefault()}
           onClick={() => {
-            if (!isUploading) {
+            if (!isUploading && !(slot === 'model' && (!isPro || !advancedMode))) {
               getFileInputRef(slot).current?.click()
             }
           }}
-          className={`relative flex ${isUploading ? 'cursor-progress opacity-80' : 'cursor-pointer'} flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-colors sm:p-7 ${
+          className={`relative flex ${
+            isUploading || (slot === 'model' && (!isPro || !advancedMode))
+              ? 'cursor-not-allowed opacity-70'
+              : 'cursor-pointer'
+          } flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-colors sm:p-7 ${
             previewUrl
               ? 'border-[var(--brand-green)]/55 bg-[var(--brand-green-muted)] shadow-[0_0_22px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
-              : 'border-white/12 bg-white/[0.025] hover:border-white/25 hover:bg-white/[0.05]'
+              : isLocked
+                ? 'border-white/8 bg-black/30'
+                : 'border-white/12 bg-white/[0.025] hover:border-white/25 hover:bg-white/[0.05]'
           }`}
         >
           {!previewUrl && !isUploadingSlot ? (
@@ -323,6 +373,28 @@ export function ModelGenerator({
               className="pointer-events-none absolute inset-0 rounded-2xl border border-white/[0.04] bg-[radial-gradient(circle_at_20%_20%,rgba(159,255,87,0.08),transparent_55%),radial-gradient(circle_at_80%_30%,rgba(159,255,87,0.05),transparent_60%),linear-gradient(135deg,rgba(255,255,255,0.05)_0%,rgba(15,15,15,0.55)_90%)]"
               aria-hidden
             />
+          ) : null}
+          {isLocked ? (
+            <div className="relative z-10 flex flex-col items-center gap-3 text-neutral-400">
+              <Lock className="h-6 w-6 text-neutral-500" />
+              <p className="text-sm font-medium text-neutral-300">
+                {showUpgradeCTA ? 'Upgrade to unlock Pro try-on.' : 'Toggle Pro mode to enable uploads.'}
+              </p>
+              {showUpgradeCTA ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onUpgradeClick()
+                  }}
+                  className="mt-1 rounded-lg border-white/20 bg-black/40 text-xs font-semibold text-neutral-200 hover:border-white/30 hover:bg-black/55"
+                >
+                  Upgrade to Pro
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           {isUploadingSlot ? (
             <div className="relative z-10 flex flex-col items-center gap-3 text-neutral-300">
@@ -365,6 +437,7 @@ export function ModelGenerator({
             accept="image/*"
             onChange={(event) => handleFileChange(slot, event)}
             className="hidden"
+            disabled={slot === 'model' && (!isPro || !advancedMode)}
           />
         </div>
       </div>
@@ -386,10 +459,42 @@ export function ModelGenerator({
       </div>
 
       <div className="space-y-6">
-        <div className="grid gap-6 lg:grid-cols-2">
-          {renderUploadSection('garment')}
-          {renderUploadSection('model')}
-        </div>
+        {isPro ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            {renderUploadSection('garment')}
+            {renderUploadSection('model')}
+          </div>
+        ) : (
+          <>
+            {renderUploadSection('garment')}
+            <div className="mt-3 flex items-center justify-between text-sm text-neutral-400">
+              <span>Want to upload your own model photo?</span>
+              <Button
+                variant="link"
+                className="text-[#9FFF57] hover:text-[#CFFF8A] p-0"
+                onClick={() => router.push('/pricing')}
+              >
+                Upgrade to Pro
+              </Button>
+            </div>
+          </>
+        )}
+
+        {isPro ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-neutral-200">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="advanced-mode"
+                checked={advancedMode && isPro}
+                onCheckedChange={(value) => setAdvancedMode(value)}
+                disabled={!isPro}
+              />
+              <Label htmlFor="advanced-mode" className="text-sm text-neutral-300">
+                Upload my own model photo (Pro only)
+              </Label>
+            </div>
+          </div>
+        ) : null}
 
         <div className="space-y-2.5">
           <Label className="text-sm font-medium text-neutral-400">Style Type</Label>
@@ -523,9 +628,13 @@ export function ModelGenerator({
               isUploading ||
               !hasCredits ||
               !garmentAsset?.secureUrl ||
-              !modelAsset?.secureUrl
+              (advancedMode && !modelAsset?.secureUrl)
             }
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#9FFF57] px-6 text-base font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(159,255,87,0.4)] focus-visible:ring-2 focus-visible:ring-[#9FFF57] focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60"
+            className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl px-6 text-base font-semibold shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-200 ease-out focus-visible:ring-2 focus-visible:ring-[#9FFF57] focus-visible:ring-offset-1 focus-visible:ring-offset-black disabled:translate-y-0 disabled:opacity-60 ${
+              advancedMode && isPro
+                ? 'bg-[#9FFF57] text-black hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(159,255,87,0.4)]'
+                : 'bg-white/10 text-neutral-100 hover:-translate-y-0.5 hover:bg-white/15 hover:shadow-[0_0_28px_rgba(159,255,87,0.25)]'
+            }`}
           >
             {isGenerating ? (
               <>
@@ -535,7 +644,7 @@ export function ModelGenerator({
             ) : (
               <>
                 <Sparkles className="h-5 w-5" />
-                Generate Image
+                {advancedMode && isPro ? 'Generate with Try-On Pro' : 'Generate Basic Preview'}
               </>
             )}
           </Button>
