@@ -7,6 +7,7 @@ import { Download, Loader2, Sparkles } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { toast } from '@/hooks/use-toast'
 import type { GeneratedImage, FlattenedGeneratedImage } from '@/components/dashboard/types'
+import { ensureModelcastWatermark } from '@/lib/cloudinary'
 
 import { AllGenerationsDialog } from './all-generations-dialog'
 
@@ -40,12 +41,34 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
       [id]: true,
     }))
 
-  const handleDownload = (url: string) => {
-    toast({
-      title: 'Download coming soon',
-      description: 'Images will be available for download after generation is connected.',
-    })
-    console.log('Download image', url)
+  const handleDownload = async (url: string, isWatermarked: boolean) => {
+    try {
+      const response = await fetch(url, { mode: 'cors' })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      const blob = await response.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const suffix = isWatermarked ? '_watermarked' : ''
+      link.href = blobUrl
+      link.download = `modelcast_output${suffix}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(blobUrl)
+      toast({
+        title: 'Download started',
+        description: isWatermarked ? 'Watermarked preview saved to your device.' : 'HD image saved to your device.',
+      })
+    } catch (error) {
+      console.error('[recent-generations] download failed', error)
+      toast({
+        title: 'Download failed',
+        description: 'Please try again in a moment.',
+        variant: 'destructive',
+      })
+    }
   }
 
   const cardBaseClass =
@@ -76,6 +99,10 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
   const renderPreviewCard = (image: FlattenedGeneratedImage) => {
     const isBroken = brokenIds[image.id] ?? false
 
+    const shouldWatermark = image.mode === 'preview'
+    const displayUrl = shouldWatermark ? ensureModelcastWatermark(image.url) : image.url
+    const downloadUrl = shouldWatermark ? ensureModelcastWatermark(image.url) : image.url
+
     return (
       <div key={image.id} className="group flex flex-col text-center">
         <div className={cardBaseClass}>
@@ -96,7 +123,7 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
               <div className="w-full overflow-hidden rounded-lg bg-neutral-950/70">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={image.url}
+                  src={displayUrl}
                   alt="Generated model"
                   className="aspect-[4/5] w-full object-cover transition-all duration-200 ease-out group-hover:scale-[1.02]"
                   onError={() => handleImageError(image.id)}
@@ -108,8 +135,11 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
               <button
                 type="button"
                 className="mt-2 mx-auto inline-flex w-[70%] items-center justify-center rounded-xl bg-white py-1.5 text-xs text-black transition-colors duration-200 ease-out hover:bg-neutral-200 sm:w-[60%]"
-                onClick={() => handleDownload(image.url)}
+                onClick={() => {
+                  void handleDownload(downloadUrl, shouldWatermark)
+                }}
                 aria-label="Download"
+                title={shouldWatermark ? 'Download (watermarked)' : 'Download'}
               >
                 <Download className="h-4 w-4" />
               </button>

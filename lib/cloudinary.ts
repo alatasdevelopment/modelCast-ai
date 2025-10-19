@@ -75,3 +75,40 @@ export function buildWatermarkedPreviewUrl(sourceUrl: string): string {
 
   return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformation}/${encodedSource}`
 }
+
+const MODELCAST_OVERLAY = 'l_modelcast_watermark,o_35,g_south_east,x_10,y_10'
+
+const hasModelcastOverlay = (url: string): boolean => url.includes('l_modelcast_watermark')
+
+const appendCacheBuster = (url: string) => {
+  try {
+    const next = new URL(url)
+    next.searchParams.set('cb', Date.now().toString())
+    return next.toString()
+  } catch {
+    const separator = url.includes('?') ? '&' : '?'
+    return `${url}${separator}cb=${Date.now()}`
+  }
+}
+
+export const ensureModelcastWatermark = (
+  url: string,
+  options: { cacheBust?: boolean } = {},
+): string => {
+  if (!url || !url.includes('/upload/')) {
+    return url
+  }
+
+  const alreadyHasOverlay = hasModelcastOverlay(url)
+  const transformed = alreadyHasOverlay
+    ? url
+    : url.replace('/upload/', `/upload/${MODELCAST_OVERLAY}/`)
+
+  if (options.cacheBust && !alreadyHasOverlay) {
+    return appendCacheBuster(transformed)
+  }
+
+  return transformed
+}
+
+export const hasModelcastWatermark = (url: string): boolean => hasModelcastOverlay(url)

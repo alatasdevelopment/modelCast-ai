@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import type { FlattenedGeneratedImage } from '@/components/dashboard/types'
+import { ensureModelcastWatermark } from '@/lib/cloudinary'
 
 interface AllGenerationsDialogProps {
   open: boolean
@@ -20,7 +21,7 @@ interface AllGenerationsDialogProps {
   images: FlattenedGeneratedImage[]
   brokenIds: Record<string, boolean>
   onImageError: (id: string) => void
-  onDownload: (url: string) => void
+  onDownload: (url: string, isWatermarked: boolean) => void | Promise<void>
 }
 
 export function AllGenerationsDialog({
@@ -65,6 +66,13 @@ export function AllGenerationsDialog({
             ) : (
               images.map((image) => {
                 const isBroken = brokenIds[image.id] ?? false
+                const shouldWatermark = image.mode === 'preview'
+                const displayUrl = shouldWatermark
+                  ? ensureModelcastWatermark(image.url)
+                  : image.url
+                const downloadUrl = shouldWatermark
+                  ? ensureModelcastWatermark(image.url)
+                  : image.url
                 return (
                   <div key={image.id} className="flex flex-col items-center">
                     <div className={cardBaseClass}>
@@ -87,7 +95,7 @@ export function AllGenerationsDialog({
                           <div className="w-full overflow-hidden rounded-lg bg-neutral-950/70">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={image.url}
+                              src={displayUrl}
                               alt="Generated model"
                               className="aspect-[4/5] w-full object-cover transition-all duration-200 ease-out group-hover:scale-[1.02]"
                               onError={() => onImageError(image.id)}
@@ -99,8 +107,11 @@ export function AllGenerationsDialog({
                           <button
                             type="button"
                             className="mt-2 mx-auto inline-flex w-[70%] items-center justify-center rounded-xl bg-white py-1.5 text-xs text-black transition-colors duration-200 ease-out hover:bg-neutral-200 sm:w-[60%]"
-                            onClick={() => onDownload(image.url)}
+                            onClick={() => {
+                              void onDownload(downloadUrl, shouldWatermark)
+                            }}
                             aria-label="Download"
+                            title={shouldWatermark ? 'Download (watermarked)' : 'Download'}
                           >
                             <Download className="h-4 w-4" />
                           </button>
