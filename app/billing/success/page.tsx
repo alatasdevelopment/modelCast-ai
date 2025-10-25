@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { getSupabaseClient } from "@/lib/supabaseClient"
 
 type ConfirmationState = "idle" | "processing" | "success" | "error"
 
@@ -16,6 +17,7 @@ export default function BillingSuccessPage() {
   const { toast } = useToast()
   const [status, setStatus] = useState<ConfirmationState>("idle")
   const [message, setMessage] = useState<string>("Validating your upgrade…")
+  const supabaseClient = useMemo(() => getSupabaseClient(), [])
 
   const sessionId = useMemo(() => searchParams.get("session_id"), [searchParams])
   const planId = useMemo(() => searchParams.get("plan"), [searchParams])
@@ -30,10 +32,19 @@ export default function BillingSuccessPage() {
     const confirmCheckout = async () => {
       setStatus("processing")
       try {
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession()
+
+        if (!session?.access_token) {
+          throw new Error("Your session expired. Please sign in again.")
+        }
+
         const response = await fetch("/api/billing/confirm", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ sessionId, planId }),
         })
@@ -66,7 +77,7 @@ export default function BillingSuccessPage() {
     }
 
     void confirmCheckout()
-  }, [planId, router, sessionId, toast])
+  }, [planId, router, sessionId, supabaseClient, toast])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#050505] via-[#080808] to-[#0b0b0b] px-4 py-16 text-white">

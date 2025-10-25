@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+
+import { getSupabaseServerClient } from "@/lib/supabaseClient"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -33,15 +34,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
   }
 
-  const supabase = createRouteHandlerClient({ cookies })
+  const cookieStore = await cookies()
+  let accessToken =
+    cookieStore.get("sb-access-token")?.value ??
+    cookieStore.get("supabase-auth-token")?.value ??
+    null
+
+  if (!accessToken) {
+    const authHeader = request.headers.get("Authorization")
+    if (authHeader?.startsWith("Bearer ")) {
+      accessToken = authHeader.slice("Bearer ".length)
+    }
+  }
+
+  if (!accessToken) {
+    console.warn("[billing] checkout missing access token")
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const supabase = getSupabaseServerClient(request, accessToken)
 
   const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(accessToken)
 
-  if (sessionError || !session?.user) {
-    console.warn("[billing] checkout requires authentication", sessionError)
+  if (userError || !user) {
+    console.warn("[billing] checkout requires authentication", userError)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -64,7 +83,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid plan selection." }, { status: 400 })
   }
 
-  const user = session.user
   const successUrl = `${PUBLIC_SITE_URL.replace(/\/$/, "")}/billing/success?session_id={CHECKOUT_SESSION_ID}&plan=${planId}`
   const cancelUrl = `${PUBLIC_SITE_URL.replace(/\/$/, "")}/?checkout=cancelled`
 

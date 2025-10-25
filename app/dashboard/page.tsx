@@ -8,7 +8,7 @@ import { ProfileCard } from "@/components/dashboard/profile-card"
 import { ModelGenerator, type GenerationSettings } from "@/components/dashboard/model-generator"
 import { RecentGenerations } from "@/components/dashboard/recent-generations"
 import { LatestPreviewCard } from "@/components/dashboard/latest-preview-card"
-import type { GeneratedImage } from "@/components/dashboard/types"
+import type { GeneratedImage, PlanTier } from "@/components/dashboard/types"
 import { SessionGuard } from "@/components/auth/session-guard"
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
 import { useToast } from "@/hooks/use-toast"
@@ -23,21 +23,153 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
+const PLAN_LIMITS_MAP: Record<PlanTier, number> = {
+  free: 2,
+  pro: 30,
+  studio: 150,
+}
+
+const resolvePlanTier = (
+  rawPlan?: string | null,
+  isProFlag?: boolean | null,
+  isStudioFlag?: boolean | null,
+): PlanTier => {
+  const normalized = typeof rawPlan === "string" ? rawPlan.toLowerCase() : null
+  if (isStudioFlag || normalized === "studio") return "studio"
+  if (isProFlag || normalized === "pro") return "pro"
+  return "free"
+}
+
 function DashboardContent() {
   const router = useRouter()
   const { user, signOut } = useSupabaseAuth()
   const { toast } = useToast()
 
-  const FREE_TIER_MAX = 2
-  const MAX_CREDITS = 10
-  const [credits, setCredits] = useState(FREE_TIER_MAX)
-  const [isPro, setIsPro] = useState(false)
+  const [plan, setPlan] = useState<PlanTier>("free")
+  const [credits, setCredits] = useState<number>(PLAN_LIMITS_MAP.free)
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const supabase = useMemo(() => getSupabaseClient(), [])
+  const supabaseClient = useMemo(() => getSupabaseClient(), [])
+
+  type GenerationRow = {
+    id: string
+    image_url: string
+    plan: string | null
+    created_at: string | null
+    metadata?: {
+      form?: Record<string, unknown> | null
+      delivery?: string | null
+    } | null
+  }
+
+  const mapGenerationRow = useCallback(
+    (row: GenerationRow): GeneratedImage => {
+      const planTier = (row.plan ?? "free") as PlanTier
+      const formMetadata = (row.metadata?.form ?? {}) as Record<string, string | undefined>
+      const deliveryHint = (row.metadata?.delivery ?? null) as string | null
+      const derivedMode: GeneratedImage["mode"] =
+        deliveryHint === "hd" || planTier !== "free" ? "hd" : "preview"
+
+      const settings = {
+        styleType: formMetadata.styleType ?? "studio",
+        gender: formMetadata.gender ?? "female",
+        ageGroup: formMetadata.ageGroup ?? "adult",
+        skinTone: formMetadata.skinTone ?? "medium",
+        aspectRatio: formMetadata.aspectRatio ?? "3:4",
+      }
+
+      const hasSettings = Object.keys(formMetadata).length > 0
+
+      return {
+        id: row.id,
+        url: row.image_url,
+        urls: [row.image_url],
+        mode: derivedMode,
+        plan: planTier,
+        timestamp: row.created_at ? new Date(row.created_at) : new Date(),
+        settings: hasSettings ? settings : undefined,
+      }
+    },
+    [],
+  )
+
+  const fetchGenerations = useCallback(
+    async (explicitUserId?: string | null) => {
+      let targetUserId = explicitUserId ?? null
+
+      if (!targetUserId) {
+        console.log("[DEBUG] Fetching session before generations...")
+        const sessionResponse = await supabaseClient.auth.getSession()
+        console.log("[DEBUG] Session response:", sessionResponse)
+
+        const {
+          data: { user: sessionUser },
+          error: userError,
+        } = await supabaseClient.auth.getUser()
+        console.log("[DEBUG] getUser() result:", { sessionUser, userError })
+
+        if (userError) {
+          console.error("[dashboard] failed to resolve session before loading generations", userError)
+          return
+        }
+
+        if (!sessionUser?.id) {
+          console.warn("[DEBUG] No user found, aborting generations fetch.")
+          return
+        }
+
+        targetUserId = sessionUser.id
+      }
+
+      if (!targetUserId) {
+        console.warn("[DEBUG] Unable to determine authenticated user — skipping generations fetch.")
+        return
+      }
+
+      console.log("[DEBUG] Direct Supabase instance:", supabaseClient)
+      console.log("[DEBUG] Initiating generations fetch...")
+
+      const { data, error } = await supabaseClient
+        .from("generations")
+        .select<GenerationRow>("id, image_url, plan, created_at, metadata")
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false, nullsLast: true })
+        .limit(20)
+
+      let finalRows = (data as GenerationRow[] | null) ?? null
+      let rpcData: GenerationRow[] | null = null
+
+      if (error) {
+        console.error("[dashboard] failed to load generations", error)
+        const {
+          data: rpcResponseData,
+          error: rpcError,
+        } = await supabaseClient.rpc<GenerationRow[] | null>("get_generations_safe", {
+          p_user_id: targetUserId,
+        })
+
+        if (rpcError) {
+          console.error("[dashboard] RPC fallback failed", rpcError)
+          return
+        }
+
+        if (rpcResponseData) {
+          console.warn("[FALLBACK] Generations loaded via RPC fallback.")
+          rpcData = rpcResponseData
+          finalRows = rpcData
+        }
+      }
+
+      if (finalRows) {
+        setGeneratedImages(finalRows.map(mapGenerationRow))
+        console.log("[SUCCESS] Generations loaded:", data?.length || rpcData?.length || 0)
+      }
+    },
+    [mapGenerationRow, supabaseClient],
+  )
 
   const fullName = useMemo(() => {
     const maybeName = user?.user_metadata?.full_name
@@ -51,9 +183,9 @@ function DashboardContent() {
     const fetchProfile = async () => {
       if (!user?.id) return
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from("profiles")
-        .select("credits, is_pro")
+        .select("credits, is_pro, is_studio, plan")
         .eq("id", user.id)
         .maybeSingle()
 
@@ -68,10 +200,15 @@ function DashboardContent() {
       }
 
       if (isMounted && data) {
-        if (typeof data.credits === "number") {
-          setCredits(data.credits)
-        }
-        setIsPro(Boolean(data.is_pro))
+        const detectedPlan = resolvePlanTier(data.plan ?? null, data.is_pro ?? null, data.is_studio ?? null)
+        const planLimit = PLAN_LIMITS_MAP[detectedPlan]
+        const normalizedCredits = Math.min(
+          Math.max(typeof data.credits === "number" ? data.credits : planLimit, 0),
+          planLimit,
+        )
+
+        setPlan(detectedPlan)
+        setCredits(normalizedCredits)
       }
     }
 
@@ -80,16 +217,38 @@ function DashboardContent() {
     return () => {
       isMounted = false
     }
-  }, [supabase, toast, user?.id])
+  }, [supabaseClient, toast, user?.id])
+
+  useEffect(() => {
+    console.log("[DEBUG] Supabase client origin check:", supabaseClient)
+  }, [supabaseClient])
+
+  useEffect(() => {
+    void fetchGenerations()
+  }, [fetchGenerations])
 
   const handleGenerate = useCallback(
     async (settings: GenerationSettings): Promise<string | null> => {
       const isAdvancedMode = settings.mode === "advanced"
 
+      const planLimit = PLAN_LIMITS_MAP[plan]
+
       if (credits <= 0) {
         toast({
           title: "Out of credits",
-          description: "You’ve used all your free previews. Upgrade to HD to continue.",
+          description:
+            plan === "free"
+              ? "You’ve used your 2 free credits. Upgrade to Pro for more."
+              : "You’ve used all your credits. Recharge or upgrade to continue.",
+          variant: "destructive",
+        })
+        return null
+      }
+
+      if (plan === "free" && isAdvancedMode) {
+        toast({
+          title: "Upgrade for dual uploads",
+          description: "Pro plans unlock model photo uploads and HD outputs.",
           variant: "destructive",
         })
         return null
@@ -125,7 +284,7 @@ function DashboardContent() {
       try {
         const {
           data: { session },
-        } = await supabase.auth.getSession()
+        } = await supabaseClient.auth.getSession()
 
         if (!session) {
           toast({
@@ -133,7 +292,7 @@ function DashboardContent() {
             description: "Please log in again to continue generating.",
             variant: "destructive",
           })
-          await supabase.auth.signOut()
+          await supabaseClient.auth.signOut()
           router.push("/login")
           return null
         }
@@ -152,10 +311,13 @@ function DashboardContent() {
           requestBody.modelImageUrl = settings.modelImageUrl
         }
 
+        const accessToken = session.access_token
+
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           },
           body: JSON.stringify(requestBody),
           credentials: "include",
@@ -169,7 +331,7 @@ function DashboardContent() {
             description: "Sign in again to keep generating model shots.",
             variant: "destructive",
           })
-          await supabase.auth.signOut()
+          await supabaseClient.auth.signOut()
           router.replace("/login")
           router.refresh()
           return null
@@ -230,37 +392,59 @@ function DashboardContent() {
         const outputUrl = payload.outputUrl
         latestOutputUrl = outputUrl
 
-        const mode = isAdvancedMode ? "hd" : "preview"
-        const outputUrls = [outputUrl]
+        const nextPlan = (payload?.plan as PlanTier | undefined) ?? plan
+        const nextPlanLimit = PLAN_LIMITS_MAP[nextPlan]
 
-        const newImage: GeneratedImage = {
-          id:
-            typeof crypto !== "undefined" && "randomUUID" in crypto
-              ? crypto.randomUUID()
-              : Date.now().toString(),
-          url: outputUrl,
-          urls: outputUrls,
-          mode,
-          timestamp: new Date(),
-          settings: {
-            styleType: settings.styleType,
-            gender: settings.gender,
-            ageGroup: settings.ageGroup,
-            skinTone: settings.skinTone,
-            aspectRatio: settings.aspectRatio,
-          },
+        if (payload?.plan) {
+          setPlan(nextPlan)
         }
 
-        setGeneratedImages((previous) => [newImage, ...previous].slice(0, 2))
         if (payload && typeof payload.creditsRemaining === "number") {
-          setCredits(Math.max(payload.creditsRemaining, 0))
+          setCredits(Math.min(Math.max(payload.creditsRemaining, 0), nextPlanLimit))
         } else {
-          setCredits((previous) => Math.max(previous - 1, 0))
+          setCredits((previous) => Math.min(Math.max(previous - 1, 0), planLimit))
         }
+
+        if (payload?.generation) {
+          const mapped = mapGenerationRow({
+            id: payload.generation.id,
+            image_url: payload.generation.url,
+            plan: payload.generation.plan,
+            created_at: payload.generation.createdAt,
+            metadata: payload.generation.metadata ?? null,
+          })
+          setGeneratedImages((previous) => [mapped, ...previous].slice(0, 20))
+        } else {
+          const mode = nextPlan === "free" ? "preview" : "hd"
+          const fallback: GeneratedImage = {
+            id:
+              typeof crypto !== "undefined" && "randomUUID" in crypto
+                ? crypto.randomUUID()
+                : Date.now().toString(),
+            url: outputUrl,
+            urls: [outputUrl],
+            mode,
+            plan: nextPlan,
+            timestamp: new Date(),
+            settings: {
+              styleType: settings.styleType,
+              gender: settings.gender,
+              ageGroup: settings.ageGroup,
+              skinTone: settings.skinTone,
+              aspectRatio: settings.aspectRatio,
+            },
+          }
+          setGeneratedImages((previous) => [fallback, ...previous].slice(0, 20))
+        }
+
         toast({
-          title: "Model shot generated successfully.",
-          description: "Check Recent Generations for your new look.",
+          title: "Render complete",
+          description: "1 credit used.",
         })
+
+        if (user?.id) {
+          void fetchGenerations(user.id)
+        }
       } catch (error) {
         console.error("[dashboard] generate prediction failed", error)
         toast({
@@ -284,7 +468,7 @@ function DashboardContent() {
 
       return latestOutputUrl
     },
-    [FREE_TIER_MAX, credits, router, supabase, toast],
+    [credits, plan, router, supabaseClient, toast, mapGenerationRow, fetchGenerations, user?.id],
   )
 
   const handleSignOut = useCallback(async () => {
@@ -311,17 +495,21 @@ function DashboardContent() {
     }
   }, [router, signOut, toast])
 
-  const currentModeLabel = isPro
-    ? "Pro Mode (dual image try-on unlocked)"
-    : "Basic Mode (AI model will wear your garment)"
-  const displayMaxCredits = isPro ? MAX_CREDITS : FREE_TIER_MAX
+  const totalCredits = PLAN_LIMITS_MAP[plan]
+  const currentModeLabel =
+    plan === "free"
+      ? "Free Preview Mode (watermarked)"
+      : plan === "pro"
+        ? "Pro Mode (HD dual-image try-on)"
+        : "Studio Mode (HD + batch/API)"
   const latestImage = generatedImages[0] ?? null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050505] via-[#080808] to-[#0b0b0b] text-white">
       <DashboardNav
         credits={credits}
-        maxCredits={displayMaxCredits}
+        maxCredits={totalCredits}
+        plan={plan}
         onProfileClick={() => setIsProfileOpen(true)}
       />
 
@@ -332,7 +520,8 @@ function DashboardContent() {
             hasCredits={credits > 0}
             modeLabel={currentModeLabel}
             onUpgradeClick={handleUpgradeClick}
-            isPro={isPro}
+            isPro={plan !== "free"}
+            plan={plan}
           />
         </section>
 
@@ -356,7 +545,7 @@ function DashboardContent() {
           <div className="max-h-[80vh] overflow-y-auto pr-1">
             <ProfileCard
               credits={credits}
-              maxCredits={displayMaxCredits}
+              maxCredits={totalCredits}
               onUpgradeClick={handleUpgradeClick}
               onClose={() => setIsProfileOpen(false)}
               onSignOut={handleSignOut}

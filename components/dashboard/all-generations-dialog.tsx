@@ -60,13 +60,13 @@ export function AllGenerationsDialog({
                 />
                 <p className="text-sm font-semibold text-neutral-200">No generations yet</p>
                 <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                  Preview Result (Watermarked)
+                  Preview (Watermarked · Standard Resolution)
                 </p>
               </div>
             ) : (
               images.map((image) => {
                 const isBroken = brokenIds[image.id] ?? false
-                const shouldWatermark = image.mode === 'preview'
+                const shouldWatermark = image.plan === 'free'
                 const displayUrl = shouldWatermark
                   ? ensureModelcastWatermark(image.url)
                   : image.url
@@ -87,7 +87,7 @@ export function AllGenerationsDialog({
                           />
                           <p className="text-sm font-semibold text-neutral-200">Preview not available</p>
                           <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                            Preview Result (Watermarked)
+                            Preview (Watermarked · Standard Resolution)
                           </p>
                         </>
                       ) : (
@@ -102,7 +102,9 @@ export function AllGenerationsDialog({
                             />
                           </div>
                           <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                            {image.mode === 'preview' ? 'Preview Result (Watermarked)' : 'HD Result'}
+                            {image.plan === 'free'
+                              ? 'Preview (Watermarked · Standard Resolution)'
+                              : 'HD Result'}
                           </p>
                           <button
                             type="button"

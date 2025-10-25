@@ -29,6 +29,7 @@ describe('ModelGenerator upload modes', () => {
         modeLabel="Basic Mode"
         onUpgradeClick={vi.fn()}
         isPro={false}
+        plan="free"
       />,
     )
 
@@ -46,6 +47,7 @@ describe('ModelGenerator upload modes', () => {
         modeLabel="Pro Mode"
         onUpgradeClick={vi.fn()}
         isPro
+        plan="pro"
       />,
     )
 

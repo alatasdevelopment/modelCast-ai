@@ -8,12 +8,12 @@ describe('ensureModelcastWatermark', () => {
     const transformed = ensureModelcastWatermark(original)
 
     expect(transformed).toContain('l_modelcast_watermark')
-    expect(transformed).toContain('/upload/l_modelcast_watermark,o_35,g_south_east,x_10,y_10/')
+    expect(transformed).toContain('/upload/l_modelcast_watermark,o_25,g_south_east,x_10,y_10/')
   })
 
   it('avoids duplicating the overlay if already present', () => {
     const existing =
-      'https://res.cloudinary.com/demo/image/upload/l_modelcast_watermark,o_35,g_south_east,x_10,y_10/v123/sample.png'
+      'https://res.cloudinary.com/demo/image/upload/l_modelcast_watermark,o_25,g_south_east,x_10,y_10/v123/sample.png'
     const transformed = ensureModelcastWatermark(existing)
 
     expect(transformed).toBe(existing)

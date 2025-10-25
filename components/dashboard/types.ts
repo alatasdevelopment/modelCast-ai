@@ -1,4 +1,5 @@
 export type GenerationMode = "preview" | "hd"
+export type PlanTier = "free" | "pro" | "studio"
 
 export interface GeneratedImage {
   id: string
@@ -6,7 +7,8 @@ export interface GeneratedImage {
   urls: string[]
   mode: GenerationMode
   timestamp: Date
-  settings: {
+  plan: PlanTier
+  settings?: {
     styleType: string
     gender: string
     ageGroup: string
@@ -20,4 +22,5 @@ export interface FlattenedGeneratedImage {
   url: string
   mode: GenerationMode
   timestamp: Date
+  plan: PlanTier
 }

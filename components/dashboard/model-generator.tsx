@@ -22,6 +22,7 @@ import {
   uploadToCloudinary,
   type CloudinaryUploadResult,
 } from '@/lib/cloudinary'
+import type { PlanTier } from '@/components/dashboard/types'
 
 export interface GenerationSettings {
   styleType: string
@@ -40,6 +41,7 @@ interface ModelGeneratorProps {
   modeLabel: string
   onUpgradeClick: () => void
   isPro: boolean
+  plan: PlanTier
 }
 
 const styleTypes = [
@@ -76,6 +78,7 @@ export function ModelGenerator({
   modeLabel,
   onUpgradeClick,
   isPro,
+  plan,
 }: ModelGeneratorProps) {
   const router = useRouter()
   const [formValues, setFormValues] = useState<GenerationFormState>({
@@ -257,6 +260,9 @@ export function ModelGenerator({
   }
 
   const isUploading = uploadingState.garment || uploadingState.model
+  const upgradeTooltip = !hasCredits && plan === 'free'
+    ? 'You’ve used your 2 free credits. Upgrade to Pro for more.'
+    : undefined
 
   const handleGenerate = async () => {
     if (isGenerating) return
@@ -635,6 +641,7 @@ export function ModelGenerator({
                 ? 'bg-[#9FFF57] text-black hover:bg-[#AEFF6B] hover:shadow-[0_8px_20px_rgba(159,255,87,0.22)]'
                 : 'bg-white/12 text-neutral-100 hover:bg-white/18 hover:shadow-[0_6px_18px_rgba(159,255,87,0.18)]'
             }`}
+            title={upgradeTooltip}
           >
             {isGenerating ? (
               <>

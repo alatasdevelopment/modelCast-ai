@@ -1,45 +1,61 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { createClient } from "@supabase/supabase-js"
+
+import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-const adminClient =
-  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      })
-    : null
+let adminClient: ReturnType<typeof getSupabaseAdminClient> | null = null
+if (SUPABASE_SERVICE_ROLE_KEY) {
+  try {
+    adminClient = getSupabaseAdminClient()
+  } catch (error) {
+    console.warn("[billing] unable to initialize admin client", error)
+  }
+}
 
-export async function POST() {
+export async function POST(request: Request) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("[billing] missing Supabase configuration")
     return NextResponse.json({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
   }
 
-  const supabase = createRouteHandlerClient({ cookies })
+  const cookieStore = await cookies()
+  let accessToken =
+    cookieStore.get("sb-access-token")?.value ??
+    cookieStore.get("supabase-auth-token")?.value ??
+    null
 
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
+  if (!accessToken) {
+    const authHeader = request.headers.get("Authorization")
+    if (authHeader?.startsWith("Bearer ")) {
+      accessToken = authHeader.slice("Bearer ".length)
+    }
+  }
 
-  if (sessionError || !session?.user) {
-    console.warn("[billing] grant-free requires authentication", sessionError)
+  if (!accessToken) {
+    console.warn("[billing] grant-free missing access token")
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
   }
 
-  const userId = session.user.id
+  const supabase = getSupabaseServerClient(request, accessToken)
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(accessToken)
+
+  if (userError || !user) {
+    console.warn("[billing] grant-free requires authentication", userError)
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+  }
+
+  const userId = user.id
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("credits, is_pro")
+    .select("credits, is_pro, plan")
     .eq("id", userId)
     .maybeSingle()
 
@@ -68,7 +84,7 @@ export async function POST() {
   const client = adminClient ?? supabase
   const { data: updatedProfile, error: updateError } = await client
     .from("profiles")
-    .update({ credits: targetCredits })
+    .update({ credits: targetCredits, is_pro: false, is_studio: false, plan: "free" })
     .eq("id", userId)
     .select("credits")
     .maybeSingle()

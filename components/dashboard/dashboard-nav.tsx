@@ -9,18 +9,26 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import type { PlanTier } from '@/components/dashboard/types'
 
 interface DashboardNavProps {
   credits: number
   maxCredits: number
   onProfileClick: () => void
+  plan?: PlanTier
 }
 
 export function DashboardNav({
   credits,
   maxCredits,
   onProfileClick,
+  plan = 'free',
 }: DashboardNavProps) {
+  const planLabel =
+    plan === 'free'
+      ? `Free plan · ${maxCredits} preview credits`
+      : `${plan === 'pro' ? 'Pro' : 'Studio'} plan · ${maxCredits} credits / month`
+
   return (
     <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0b]/90 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-screen-xl flex-col items-start justify-between gap-4 px-6 py-4 sm:h-20 sm:flex-row sm:items-center sm:gap-6">
@@ -53,8 +61,10 @@ export function DashboardNav({
               </TooltipTrigger>
               <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-4 py-3 text-[var(--brand-green)]">
                 <div className="space-y-1 text-xs">
-                  <p>Each HD render costs 1 credit.</p>
-                  <p>You have {credits} credits remaining.</p>
+                  <p>{planLabel}</p>
+                  <p>
+                    {credits} / {maxCredits} credits remaining.
+                  </p>
                 </div>
               </TooltipContent>
             </Tooltip>

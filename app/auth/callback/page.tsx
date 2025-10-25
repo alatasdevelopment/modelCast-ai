@@ -1,22 +1,21 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 
 import { Logo } from "@/components/logo"
 import { toast } from "@/hooks/use-toast"
 import { getSupabaseClient } from "@/lib/supabaseClient"
 
-const supabase = getSupabaseClient()
-
 export default function AuthCallbackPage() {
   const router = useRouter()
+  const supabaseClient = useMemo(() => getSupabaseClient(), [])
 
   useEffect(() => {
     const handleAuth = async () => {
       const {
         data: { session },
-      } = await supabase.auth.getSession()
+      } = await supabaseClient.auth.getSession()
 
       if (session) {
         router.push("/dashboard")
@@ -31,7 +30,7 @@ export default function AuthCallbackPage() {
         return
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(currentUrl)
+      const { error } = await supabaseClient.auth.exchangeCodeForSession(currentUrl)
       if (error) {
         if (!/code .* verifier/i.test(error.message)) {
           console.error("Auth callback error:", error.message)
@@ -51,7 +50,7 @@ export default function AuthCallbackPage() {
     }
 
     handleAuth()
-  }, [router])
+  }, [router, supabaseClient])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-black text-white">

@@ -19,8 +19,11 @@ export function LatestPreviewCard({ image, isGenerating }: LatestPreviewCardProp
   }, [image?.id])
 
   const hasPreview = Boolean(image) && !isBroken
-  const label =
-    hasPreview && image?.mode !== 'preview' ? 'HD Result' : 'Preview Result (Watermarked)'
+  const label = hasPreview
+    ? image?.plan === 'free'
+      ? 'Preview (Watermarked · Standard Resolution)'
+      : 'HD Result'
+    : 'Preview (Watermarked · Standard Resolution)'
 
   return (
     <Card className="group relative mt-2 flex min-h-[460px] flex-col rounded-2xl border border-white/10 bg-[#111112] p-5 md:p-6 text-neutral-300 transition-all duration-200 ease-out hover:shadow-[0_0_12px_rgba(159,255,87,0.25)]">

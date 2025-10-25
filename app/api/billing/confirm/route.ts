@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { createClient } from "@supabase/supabase-js"
+
+import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -14,27 +14,32 @@ const PLAN_CONFIG: Record<
   {
     credits: number
     pro: boolean
+    plan: string
+    isStudio: boolean
   }
 > = {
   pro: {
     credits: 30,
     pro: true,
+    plan: "pro",
+    isStudio: false,
   },
   studio: {
     credits: 150,
     pro: true,
+    plan: "studio",
+    isStudio: true,
   },
 }
 
-const adminClient =
-  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      })
-    : null
+let adminClient: ReturnType<typeof getSupabaseAdminClient> | null = null
+if (SUPABASE_SERVICE_ROLE_KEY) {
+  try {
+    adminClient = getSupabaseAdminClient()
+  } catch (error) {
+    console.warn("[billing] unable to initialize admin client", error)
+  }
+}
 
 export async function POST(request: Request) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -66,14 +71,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unsupported plan." }, { status: 400 })
   }
 
-  const supabase = createRouteHandlerClient({ cookies })
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
+  const cookieStore = await cookies()
+  let accessToken =
+    cookieStore.get("sb-access-token")?.value ??
+    cookieStore.get("supabase-auth-token")?.value ??
+    null
 
-  if (sessionError || !session?.user) {
-    console.warn("[billing] confirm requires authenticated session")
+  if (!accessToken) {
+    const authHeader = request.headers.get("Authorization")
+    if (authHeader?.startsWith("Bearer ")) {
+      accessToken = authHeader.slice("Bearer ".length)
+    }
+  }
+
+  if (!accessToken) {
+    console.warn("[billing] confirm missing access token")
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const supabase = getSupabaseServerClient(request, accessToken)
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(accessToken)
+
+  if (userError || !user) {
+    console.warn("[billing] confirm requires authenticated session", userError)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -101,10 +124,10 @@ export async function POST(request: Request) {
     const metadataUserId = typeof metadata.user_id === "string" ? metadata.user_id : null
     const metadataPlanId = typeof metadata.plan_id === "string" ? metadata.plan_id : null
 
-    if (!metadataUserId || metadataUserId !== session.user.id) {
+    if (!metadataUserId || metadataUserId !== user.id) {
       console.error("[billing] metadata user mismatch during confirmation", {
         metadataUserId,
-        sessionUserId: session.user.id,
+        sessionUserId: user.id,
       })
       return NextResponse.json({ error: "Unable to validate checkout owner." }, { status: 403 })
     }
@@ -119,8 +142,10 @@ export async function POST(request: Request) {
       .update({
         credits: plan.credits,
         is_pro: plan.pro,
+        is_studio: plan.isStudio,
+        plan: plan.plan,
       })
-      .eq("id", session.user.id)
+      .eq("id", user.id)
 
     if (updateError) {
       console.error("[billing] failed to update profile after checkout", updateError)

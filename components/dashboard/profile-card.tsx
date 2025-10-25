@@ -59,7 +59,7 @@ export function ProfileCard({
   const [isDeleting, setIsDeleting] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const router = useRouter()
-  const supabase = getSupabaseClient()
+  const supabaseClient = useMemo(() => getSupabaseClient(), [])
 
   const displayName = userName || email || 'ModelCast User'
   const displayEmail = email || 'email@modelcast.ai'
@@ -73,14 +73,14 @@ export function ProfileCard({
   const attemptAdminDeletion = async (id: string) => {
     // Browsers instantiated with anon keys cannot access the admin API.
     if (
-      !('admin' in supabase.auth) ||
-      typeof supabase.auth.admin?.deleteUser !== 'function'
+      !('admin' in supabaseClient.auth) ||
+      typeof supabaseClient.auth.admin?.deleteUser !== 'function'
     ) {
       throw new Error('fallback-signout')
     }
 
     // @ts-expect-error admin deleteUser requires service role keys and may not be typed for browser clients
-    const { error } = await supabase.auth.admin.deleteUser(id)
+    const { error } = await supabaseClient.auth.admin.deleteUser(id)
 
     if (error) {
       const status = 'status' in error ? error.status : undefined
@@ -117,7 +117,7 @@ export function ProfileCard({
         }
       }
 
-      const { error: signOutError } = await supabase.auth.signOut()
+      const { error: signOutError } = await supabaseClient.auth.signOut()
       if (signOutError) {
         throw signOutError
       }

@@ -90,9 +90,18 @@ describe('FASHN helpers', () => {
 
   it('applies watermark to non-pro outputs', () => {
     const original = 'https://res.cloudinary.com/demo/image/upload/v123/modelcast.png'
+    const watermarked = applyWatermark(original, { width: 1024, cacheBust: true })
+    expect(watermarked).toContain('w_1024')
+    expect(watermarked).toContain('l_modelcast_watermark')
+    expect(watermarked).toContain('cb=')
+    expect(watermarked).not.toBe(original)
+  })
+
+  it('applies overlay without width when not provided', () => {
+    const original = 'https://res.cloudinary.com/demo/image/upload/v123/modelcast.png'
     const watermarked = applyWatermark(original)
     expect(watermarked).toContain('l_modelcast_watermark')
-    expect(watermarked).not.toBe(original)
+    expect(watermarked).not.toContain('w_1024')
   })
 
   it('does not duplicate watermark if already applied', () => {

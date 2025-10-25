@@ -77,17 +77,28 @@ export const buildPrompt = (options: PromptOptions): string => {
   return parts.join(', ')
 }
 
-export const applyWatermark = (url: string): string => {
+export const applyWatermark = (
+  url: string,
+  options: { cacheBust?: boolean; width?: number } = {},
+): string => {
   if (!url.includes('/upload/')) {
     return url
   }
-  if (url.includes('/upload/l_modelcast_watermark')) {
-    return url
+
+  const widthPart = options.width ? `w_${options.width},` : ''
+  const overlayPart = 'l_modelcast_watermark,o_25,g_south_east,x_10,y_10'
+
+  const alreadyApplied = url.includes('l_modelcast_watermark')
+  const transformed = alreadyApplied
+    ? url
+    : url.replace('/upload/', `/upload/${widthPart}${overlayPart}/`)
+
+  if (options.cacheBust) {
+    const separator = transformed.includes('?') ? '&' : '?'
+    return `${transformed}${separator}cb=${Date.now()}`
   }
-  return url.replace(
-    '/upload/',
-    '/upload/l_modelcast_watermark,o_35,g_south_east,x_10,y_10/',
-  )
+
+  return transformed
 }
 
 export type FashnInputContext = {

@@ -28,6 +28,7 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
           url,
           mode: image.mode,
           timestamp: image.timestamp,
+          plan: image.plan,
         })),
       ),
     [images],
@@ -78,7 +79,7 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
     <div className={cardBaseClass}>
       <Loader2 className="h-7 w-7 animate-spin text-[#9FFF57]" />
       <p className="text-sm text-neutral-300">Preparing previews…</p>
-      <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview Result (Watermarked)</p>
+      <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview (Watermarked · Standard Resolution)</p>
     </div>
   )
 
@@ -92,14 +93,14 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
         className="h-10 w-10 object-contain brightness-0 invert"
       />
       <p className="text-sm font-semibold text-neutral-200">No generations yet</p>
-      <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview Result (Watermarked)</p>
+      <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview (Watermarked · Standard Resolution)</p>
     </div>
   )
 
   const renderPreviewCard = (image: FlattenedGeneratedImage) => {
     const isBroken = brokenIds[image.id] ?? false
 
-    const shouldWatermark = image.mode === 'preview'
+    const shouldWatermark = image.plan === 'free'
     const displayUrl = shouldWatermark ? ensureModelcastWatermark(image.url) : image.url
     const downloadUrl = shouldWatermark ? ensureModelcastWatermark(image.url) : image.url
 
@@ -116,7 +117,7 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
                 className="h-10 w-10 object-contain brightness-0 invert"
               />
               <p className="text-sm font-semibold text-neutral-200">Preview not available</p>
-              <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview Result (Watermarked)</p>
+              <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview (Watermarked · Standard Resolution)</p>
             </>
           ) : (
             <>
@@ -130,7 +131,9 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
                 />
               </div>
               <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                {image.mode === 'preview' ? 'Preview Result (Watermarked)' : 'HD Result'}
+                {image.plan === 'free'
+                  ? 'Preview (Watermarked · Standard Resolution)'
+                  : 'HD Result'}
               </p>
               <button
                 type="button"

@@ -76,7 +76,7 @@ export function buildWatermarkedPreviewUrl(sourceUrl: string): string {
   return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformation}/${encodedSource}`
 }
 
-const MODELCAST_OVERLAY = 'l_modelcast_watermark,o_35,g_south_east,x_10,y_10'
+const MODELCAST_OVERLAY = 'l_modelcast_watermark,o_25,g_south_east,x_10,y_10'
 
 const hasModelcastOverlay = (url: string): boolean => url.includes('l_modelcast_watermark')
 

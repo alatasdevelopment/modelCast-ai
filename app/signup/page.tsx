@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -25,7 +25,7 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = getSupabaseClient()
+  const supabaseClient = useMemo(() => getSupabaseClient(), [])
   const { user, isLoading: authLoading } = useSupabaseAuth()
   const { toast } = useToast()
 
@@ -55,7 +55,7 @@ export default function SignupPage() {
       return
     }
     setIsLoading(true)
-    const { error } = await supabase.auth.signUp({
+    const { error } = await supabaseClient.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
@@ -83,7 +83,7 @@ export default function SignupPage() {
     setIsLoading(true)
     setErrorMessage(null)
     const redirectHost = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabaseClient.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${redirectHost.replace(/\/$/, "")}/auth/callback`,

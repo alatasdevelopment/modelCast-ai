@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { createClient } from "@supabase/supabase-js"
 
 import {
   applyWatermark,
@@ -10,6 +8,24 @@ import {
   enforceInputWhitelist,
   getModelCandidates,
 } from "@/lib/fashn"
+import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
+
+const PLAN_CREDIT_LIMITS = {
+  free: 2,
+  pro: 30,
+  studio: 150,
+} as const
+
+type PlanId = keyof typeof PLAN_CREDIT_LIMITS
+
+const resolvePlan = (profile: { plan?: string | null; is_pro?: boolean | null; is_studio?: boolean | null }): PlanId => {
+  const rawPlan = typeof profile.plan === "string" ? profile.plan.toLowerCase() : null
+  if (rawPlan === "studio") return "studio"
+  if (rawPlan === "pro") return "pro"
+  if (profile.is_studio) return "studio"
+  if (profile.is_pro) return "pro"
+  return "free"
+}
 
 const isProduction = process.env.NODE_ENV === "production"
 
@@ -33,6 +49,13 @@ const logInfo = (...args: unknown[]) => {
   if (!isProduction) {
     console.info(...args)
   }
+}
+
+type ProfileRow = {
+  credits: number | null
+  is_pro: boolean | null
+  is_studio: boolean | null
+  plan: string | null
 }
 
 type GenerateOptions = {
@@ -64,6 +87,7 @@ interface GenerateRequestBody {
   tone?: string
   skinTone?: string
   mode?: string
+  aspectRatio?: string
 }
 
 interface ParsedPayload {
@@ -71,6 +95,13 @@ interface ParsedPayload {
   modelImageUrl?: string
   options: GenerateOptions
   mode?: string
+  formSettings?: {
+    styleType?: string
+    gender?: string
+    ageGroup?: string
+    skinTone?: string
+    aspectRatio?: string
+  }
 }
 
 interface FashnRunResponse {
@@ -292,11 +323,20 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
     throw new Error("ADVANCED_MODE_REQUIRES_MODEL_IMAGE")
   }
 
+  const formSettings = {
+    styleType: typeof payload.styleType === "string" ? payload.styleType : undefined,
+    gender: typeof payload.gender === "string" ? payload.gender : undefined,
+    ageGroup: typeof payload.ageGroup === "string" ? payload.ageGroup : undefined,
+    skinTone: typeof payload.skinTone === "string" ? payload.skinTone : undefined,
+    aspectRatio: typeof payload.aspectRatio === "string" ? payload.aspectRatio : undefined,
+  }
+
   return {
     modelImageUrl,
     garmentImageUrl,
     options: normalizeOptions(payload),
     mode,
+    formSettings,
   }
 }
 
@@ -501,15 +541,14 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedP
   throw new Error("FASHN_API_UNAVAILABLE")
 }
 
-const adminClient =
-  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      })
-    : null
+let adminClient: ReturnType<typeof getSupabaseAdminClient> | null = null
+if (SUPABASE_SERVICE_ROLE_KEY) {
+  try {
+    adminClient = getSupabaseAdminClient()
+  } catch (error) {
+    console.warn("[generate] failed to initialize admin client", error)
+  }
+}
 
 export async function POST(request: Request) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -582,23 +621,38 @@ export async function POST(request: Request) {
     console.log("[generate] cookie keys", cookieKeys)
   }
 
-  const supabase = createRouteHandlerClient({ cookies })
+  let accessToken =
+    cookieStore.get("sb-access-token")?.value ??
+    cookieStore.get("supabase-auth-token")?.value ??
+    null
 
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
+  if (!accessToken) {
+    const authHeader = request.headers.get("Authorization")
+    if (authHeader?.startsWith("Bearer ")) {
+      accessToken = authHeader.slice("Bearer ".length)
+    }
+  }
 
-  if (sessionError || !session?.user) {
-    console.warn("[generate] Unable to authenticate user", sessionError)
+  if (!accessToken) {
+    console.warn("[generate] Missing access token")
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const user = session.user
+  const supabase = getSupabaseServerClient(request, accessToken)
 
-  const { data: profile, error: profileError } = await supabase
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(accessToken)
+
+  if (userError || !user) {
+    console.warn("[generate] Unable to authenticate user", userError)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { data: profileData, error: profileError } = await supabase
     .from("profiles")
-    .select("credits, is_pro")
+    .select<ProfileRow>("credits, is_pro, is_studio, plan")
     .eq("id", user.id)
     .maybeSingle()
 
@@ -607,13 +661,50 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: "Unable to verify credits" }, { status: 500 })
   }
 
+  let profile: ProfileRow | null = profileData ?? null
+
   if (!profile) {
-    return NextResponse.json({ success: false, error: "PROFILE_NOT_FOUND" }, { status: 404 })
+    const defaultProfile = {
+      id: user.id,
+      credits: PLAN_CREDIT_LIMITS.free,
+      plan: "free",
+      is_pro: false,
+      is_studio: false,
+    } as const
+
+    const profileClient = adminClient ?? supabase
+    const { data: createdProfile, error: createError } = await profileClient
+      .from("profiles")
+      .upsert(defaultProfile, { onConflict: "id" })
+      .select<ProfileRow>("credits, is_pro, is_studio, plan")
+      .single()
+
+    if (createError) {
+      console.error("[generate] failed to initialize profile", createError)
+      return NextResponse.json({ success: false, error: "PROFILE_INIT_FAILED" }, { status: 500 })
+    }
+
+    profile =
+      createdProfile ?? {
+        credits: defaultProfile.credits,
+        is_pro: defaultProfile.is_pro,
+        is_studio: defaultProfile.is_studio,
+        plan: defaultProfile.plan,
+      }
+
+    console.log("[generate] auto-created profile for user", {
+      userId: user.id,
+      plan: profile.plan,
+    })
   }
 
-  const isPro = profile.is_pro === true
+  const plan = resolvePlan(profile)
+  const planCreditLimit = PLAN_CREDIT_LIMITS[plan]
+  const rawCredits = typeof profile.credits === "number" ? profile.credits : 0
+  const normalizedCredits = Math.min(Math.max(rawCredits, 0), planCreditLimit)
+  const isProTier = plan !== "free"
 
-  if (!isPro && (parsedPayload.modelImageUrl || parsedPayload.mode === "advanced")) {
+  if (!isProTier && (parsedPayload.modelImageUrl || parsedPayload.mode === "advanced")) {
     return NextResponse.json({ error: "Pro plan required for dual-image try-on." }, { status: 403 })
   }
 
@@ -621,9 +712,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Model image required for advanced mode." }, { status: 400 })
   }
 
-  const credits = typeof profile.credits === "number" ? profile.credits : 0
-
-  if (credits <= 0) {
+  if (normalizedCredits <= 0) {
     return NextResponse.json({ error: "Out of credits" }, { status: 402 })
   }
 
@@ -637,7 +726,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 502 })
   }
 
-  const creditsRemaining = Math.max(credits - 1, 0)
+  const creditsRemaining = Math.max(normalizedCredits - 1, 0)
   const updateClient = adminClient ?? supabase
   const { error: updateError } = await updateClient
     .from("profiles")
@@ -649,7 +738,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: "Unable to update credits" }, { status: 500 })
   }
 
-  const finalOutputUrl = isPro ? fashnResult.outputUrl : applyWatermark(fashnResult.outputUrl)
+  const finalOutputUrl = isProTier
+    ? fashnResult.outputUrl
+    : applyWatermark(fashnResult.outputUrl, { width: 1024, cacheBust: true })
+
+  const metadata = {
+    options: parsedPayload.options,
+    form: parsedPayload.formSettings,
+    modelImageProvided: Boolean(parsedPayload.modelImageUrl),
+    delivery: isProTier ? "hd" : "preview",
+  }
+
+  const { data: insertedGeneration, error: generationInsertError } = await updateClient
+    .from("generations")
+    .insert({
+      user_id: user.id,
+      image_url: finalOutputUrl,
+      plan,
+      metadata,
+    })
+    .select("id, image_url, plan, created_at, metadata")
+    .single()
+
+  if (generationInsertError) {
+    console.error("[generate] failed to persist generation", generationInsertError)
+  }
 
   logInfo("[generate] FASHN completed", {
     userId: user.id,
@@ -660,5 +773,16 @@ export async function POST(request: Request) {
     success: true,
     outputUrl: finalOutputUrl,
     creditsRemaining: fashnResult.creditsRemaining ?? creditsRemaining,
+    totalCredits: planCreditLimit,
+    plan,
+    generation: insertedGeneration
+      ? {
+          id: insertedGeneration.id,
+          url: insertedGeneration.image_url,
+          plan: insertedGeneration.plan,
+          createdAt: insertedGeneration.created_at,
+          metadata: insertedGeneration.metadata,
+        }
+      : null,
   })
 }

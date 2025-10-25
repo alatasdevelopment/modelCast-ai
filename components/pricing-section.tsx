@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { Check, Loader2, Sparkles } from "lucide-react"
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { getSupabaseClient } from "@/lib/supabaseClient"
 
 type PlanTier = 'free' | 'pro' | 'studio'
 
@@ -82,6 +83,7 @@ export function PricingSection() {
   const { toast } = useToast()
   const { user, isLoading } = useSupabaseAuth()
   const [loadingPlan, setLoadingPlan] = useState<PlanTier | null>(null)
+  const supabaseClient = useMemo(() => getSupabaseClient(), [])
 
   const handlePlanSelect = useCallback(
     async (plan: PricingPlan) => {
@@ -101,10 +103,19 @@ export function PricingSection() {
 
       setLoadingPlan(plan.id)
       try {
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession()
+
+        if (!session?.access_token) {
+          throw new Error('Your session expired. Please sign in again.')
+        }
+
         const response = await fetch('/api/billing/checkout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({ planId: plan.id }),
         })
@@ -127,7 +138,7 @@ export function PricingSection() {
         setLoadingPlan(null)
       }
     },
-    [isLoading, router, toast, user],
+    [isLoading, router, supabaseClient, toast, user],
   )
 
   const handleAddOnCredits = useCallback(() => {
