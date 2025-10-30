@@ -98,7 +98,10 @@ export function ModelGenerator({
     model: false,
   })
   const [isGenerating, setIsGenerating] = useState(false)
-  const [advancedMode, setAdvancedMode] = useState(isPro)
+  const [advancedMode, setAdvancedMode] = useState(false)
+
+  const modelSlotEnabled = isPro && advancedMode
+  const showModelAppearanceControls = !modelSlotEnabled
 
   const garmentFileInputRef = useRef<HTMLInputElement>(null)
   const modelFileInputRef = useRef<HTMLInputElement>(null)
@@ -236,7 +239,7 @@ export function ModelGenerator({
 
   const handleFileChange = (slot: UploadSlot, event: ChangeEvent<HTMLInputElement>) => {
     if (uploadingState.garment || uploadingState.model) return
-    if (slot === 'model' && (!isPro || !advancedMode)) return
+    if (slot === 'model' && !modelSlotEnabled) return
     const file = event.target.files?.[0]
     if (file) void handleFileSelect(slot, file)
   }
@@ -244,7 +247,7 @@ export function ModelGenerator({
   const handleDrop = (slot: UploadSlot, event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     if (uploadingState.garment || uploadingState.model) return
-    if (slot === 'model' && (!isPro || !advancedMode)) return
+    if (slot === 'model' && !modelSlotEnabled) return
     const file = event.dataTransfer.files?.[0]
     if (file) void handleFileSelect(slot, file)
   }
@@ -257,6 +260,18 @@ export function ModelGenerator({
       fileInput.value = ''
     }
     await deleteExistingAsset(slot)
+  }
+
+  const handleAdvancedToggle = (value: boolean) => {
+    if (!isPro) {
+      return
+    }
+
+    if (!value) {
+      void handleRemoveImage('model')
+    }
+
+    setAdvancedMode(value)
   }
 
   const isUploading = uploadingState.garment || uploadingState.model
@@ -332,15 +347,22 @@ export function ModelGenerator({
     }
   }
 
-  const renderUploadSection = (slot: UploadSlot) => {
+  const renderUploadSection = (slot: UploadSlot, options: { hidden?: boolean } = {}) => {
+    const { hidden = false } = options
     const previewUrl = getPreviewForSlot(slot)
     const isUploadingSlot = uploadingState[slot]
     const { title, subtitle } = uploadCopy[slot]
-    const isLocked = slot === 'model' && (!isPro || !advancedMode)
+    const isLocked = slot === 'model' && !modelSlotEnabled
     const showUpgradeCTA = slot === 'model' && !isPro
+    const visibilityClasses = hidden
+      ? 'pointer-events-none opacity-0 scale-95 max-h-0 overflow-hidden'
+      : 'pointer-events-auto opacity-100 scale-100 max-h-[640px]'
 
     return (
-      <div className="space-y-2.5">
+      <div
+        aria-hidden={hidden}
+        className={`space-y-2.5 transition-all duration-300 ease-out ${visibilityClasses}`}
+      >
         <Label className="flex items-center gap-2 text-sm font-medium text-neutral-400">
           {slot === 'model' ? (
             <>
@@ -358,12 +380,12 @@ export function ModelGenerator({
           onDrop={(event) => handleDrop(slot, event)}
           onDragOver={(event) => event.preventDefault()}
           onClick={() => {
-            if (!isUploading && !(slot === 'model' && (!isPro || !advancedMode))) {
+            if (!isUploading && !(slot === 'model' && !modelSlotEnabled)) {
               getFileInputRef(slot).current?.click()
             }
           }}
-          className={`relative flex ${
-            isUploading || (slot === 'model' && (!isPro || !advancedMode))
+          className={`relative flex min-h-[18rem] w-full ${
+            isUploading || (slot === 'model' && !modelSlotEnabled)
               ? 'cursor-not-allowed opacity-70'
               : 'cursor-pointer'
           } flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-colors sm:p-7 ${
@@ -443,7 +465,7 @@ export function ModelGenerator({
             accept="image/*"
             onChange={(event) => handleFileChange(slot, event)}
             className="hidden"
-            disabled={slot === 'model' && (!isPro || !advancedMode)}
+            disabled={slot === 'model' && !modelSlotEnabled}
           />
         </div>
       </div>
@@ -466,9 +488,11 @@ export function ModelGenerator({
 
       <div className="space-y-6">
         {isPro ? (
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div
+            className={`grid gap-6 sm:grid-cols-1 ${modelSlotEnabled ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}
+          >
             {renderUploadSection('garment')}
-            {renderUploadSection('model')}
+            {renderUploadSection('model', { hidden: !modelSlotEnabled })}
           </div>
         ) : (
           <>
@@ -491,14 +515,19 @@ export function ModelGenerator({
             <div className="flex items-center gap-2">
               <Switch
                 id="advanced-mode"
-                checked={advancedMode && isPro}
-                onCheckedChange={(value) => setAdvancedMode(value)}
+                checked={modelSlotEnabled}
+                onCheckedChange={handleAdvancedToggle}
                 disabled={!isPro}
               />
               <Label htmlFor="advanced-mode" className="text-sm text-neutral-300">
                 Upload my own model photo (Pro only)
               </Label>
             </div>
+            {modelSlotEnabled ? (
+              <span className="text-xs text-neutral-500">
+                Using your own model locks appearance controls for consistency.
+              </span>
+            ) : null}
           </div>
         ) : null}
 
@@ -531,79 +560,85 @@ export function ModelGenerator({
           </RadioGroup>
         </div>
 
-        <div className="space-y-2.5">
-          <Label className="text-sm font-medium text-neutral-400">Model Gender</Label>
-          <RadioGroup
-            value={formValues.gender}
-            onValueChange={(value) =>
-              setFormValues((current) => ({ ...current, gender: value }))
-            }
-            className="grid grid-cols-2 gap-3"
-          >
-            {['female', 'male'].map((gender) => (
-              <Label
-                key={gender}
-                htmlFor={gender}
-                className={`flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm capitalize text-neutral-200 transition ${
-                  formValues.gender === gender
-                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
-                    : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
-                }`}
-              >
-                <RadioGroupItem value={gender} id={gender} className="sr-only" />
-                {gender}
-              </Label>
-            ))}
-          </RadioGroup>
-        </div>
-
-        <div className="space-y-2.5">
-          <Label className="text-sm font-medium text-neutral-400">Age Group</Label>
-          <RadioGroup
-            value={formValues.ageGroup}
-            onValueChange={(value) =>
-              setFormValues((current) => ({ ...current, ageGroup: value }))
-            }
-            className="grid grid-cols-3 gap-3"
-          >
-            {['children', 'youth', 'elderly'].map((age) => (
-              <Label
-                key={age}
-                htmlFor={age}
-                className={`flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm font-medium uppercase tracking-wide text-neutral-300 transition ${
-                  formValues.ageGroup === age
-                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
-                    : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
-                }`}
-              >
-                <RadioGroupItem value={age} id={age} className="sr-only" />
-                {age}
-              </Label>
-            ))}
-          </RadioGroup>
-        </div>
-
-        <div className="space-y-2.5">
-          <Label className="text-sm font-medium text-neutral-400">Skin Tone</Label>
-          <div className="grid grid-cols-4 gap-4">
-            {skinTones.map((tone) => (
-              <button
-                key={tone.id}
-                type="button"
-                onClick={() =>
-                  setFormValues((current) => ({ ...current, skinTone: tone.id }))
-                }
-                className={`h-10 rounded-xl border transition hover:scale-[1.02] ${
-                  formValues.skinTone === tone.id
-                    ? 'border-transparent shadow-[0_0_18px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
-                    : 'border-white/15 hover:border-white/25'
-                }`}
-                style={{ backgroundColor: tone.color }}
-                aria-label={tone.id}
-              />
-            ))}
+        {showModelAppearanceControls ? (
+          <div className="space-y-2.5">
+            <Label className="text-sm font-medium text-neutral-400">Model Gender</Label>
+            <RadioGroup
+              value={formValues.gender}
+              onValueChange={(value) =>
+                setFormValues((current) => ({ ...current, gender: value }))
+              }
+              className="grid grid-cols-2 gap-3"
+            >
+              {['female', 'male'].map((gender) => (
+                <Label
+                  key={gender}
+                  htmlFor={gender}
+                  className={`flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm capitalize text-neutral-200 transition ${
+                    formValues.gender === gender
+                      ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
+                      : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
+                  }`}
+                >
+                  <RadioGroupItem value={gender} id={gender} className="sr-only" />
+                  {gender}
+                </Label>
+              ))}
+            </RadioGroup>
           </div>
-        </div>
+        ) : null}
+
+        {showModelAppearanceControls ? (
+          <div className="space-y-2.5">
+            <Label className="text-sm font-medium text-neutral-400">Age Group</Label>
+            <RadioGroup
+              value={formValues.ageGroup}
+              onValueChange={(value) =>
+                setFormValues((current) => ({ ...current, ageGroup: value }))
+              }
+              className="grid grid-cols-3 gap-3"
+            >
+              {['children', 'youth', 'elderly'].map((age) => (
+                <Label
+                  key={age}
+                  htmlFor={age}
+                  className={`flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm font-medium uppercase tracking-wide text-neutral-300 transition ${
+                    formValues.ageGroup === age
+                      ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
+                      : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
+                  }`}
+                >
+                  <RadioGroupItem value={age} id={age} className="sr-only" />
+                  {age}
+                </Label>
+              ))}
+            </RadioGroup>
+          </div>
+        ) : null}
+
+        {showModelAppearanceControls ? (
+          <div className="space-y-2.5">
+            <Label className="text-sm font-medium text-neutral-400">Skin Tone</Label>
+            <div className="grid grid-cols-4 gap-4">
+              {skinTones.map((tone) => (
+                <button
+                  key={tone.id}
+                  type="button"
+                  onClick={() =>
+                    setFormValues((current) => ({ ...current, skinTone: tone.id }))
+                  }
+                  className={`h-10 rounded-xl border transition hover:scale-[1.02] ${
+                    formValues.skinTone === tone.id
+                      ? 'border-transparent shadow-[0_0_18px_rgba(159,255,87,0.18)] ring-2 ring-[var(--brand-green)] ring-offset-2 ring-offset-[#0b0b0b]'
+                      : 'border-white/15 hover:border-white/25'
+                  }`}
+                  style={{ backgroundColor: tone.color }}
+                  aria-label={tone.id}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="space-y-2.5">
           <Label className="text-sm font-medium text-neutral-400">Aspect Ratio</Label>

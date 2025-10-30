@@ -1,81 +1,15 @@
-export type PromptOptions = {
-  environment?: string
-  modelType?: string
-  ageGroup?: string
-  gender?: string
-  style?: string
-  skinTone?: string
-}
+import {
+  assemblePrompt,
+  type PromptFormSelections,
+  type PromptOptions,
+} from '@/lib/promptUtils'
 
-export const buildPrompt = (options: PromptOptions): string => {
-  const parts: string[] = []
+export type { PromptOptions } from '@/lib/promptUtils'
 
-  switch (options.modelType) {
-    case 'fashion':
-      parts.push('full-body fashion model photo')
-      break
-    case 'portrait':
-      parts.push('professional studio portrait')
-      break
-    case 'street':
-      parts.push('street style fashion photo')
-      break
-    default:
-      if (options.modelType) {
-        parts.push(`${options.modelType} fashion photo`)
-      }
-  }
-
-  switch (options.environment) {
-    case 'outdoor':
-      parts.push('shot outdoors with natural lighting')
-      break
-    case 'studio':
-      parts.push('shot in a studio with neutral background')
-      break
-    case 'urban':
-      parts.push('urban city background')
-      break
-    default:
-      if (options.environment) {
-        parts.push(`${options.environment} background`)
-      }
-  }
-
-  switch (options.ageGroup) {
-    case 'young':
-      parts.push('young adult model')
-      break
-    case 'middle-aged':
-      parts.push('middle-aged person')
-      break
-    case 'senior':
-      parts.push('elderly person')
-      break
-    default:
-      if (options.ageGroup) {
-        parts.push(`${options.ageGroup} model`)
-      }
-  }
-
-  if (options.gender) {
-    parts.push(options.gender)
-  }
-
-  if (options.style) {
-    parts.push(`${options.style} outfit`)
-  }
-
-  if (options.skinTone) {
-    parts.push(`${options.skinTone} skin tone`)
-  }
-
-  if (parts.length === 0) {
-    parts.push('professional fashion photography')
-  }
-
-  return parts.join(', ')
-}
+export const buildPrompt = (
+  options: PromptOptions,
+  formSelections?: PromptFormSelections,
+): string => assemblePrompt(options, formSelections).prompt
 
 export const applyWatermark = (
   url: string,
@@ -107,6 +41,10 @@ export type FashnInputContext = {
   prompt: string
 }
 
+export type BuildFashnInputOptions = {
+  includePrompt?: boolean
+}
+
 const INPUT_WHITELIST: Record<string, readonly string[]> = {
   'product-to-model': ['product_image', 'output_format', 'prompt'],
   'tryon-v1.6': ['model_image', 'garment_image', 'output_format', 'prompt'],
@@ -116,10 +54,16 @@ const INPUT_WHITELIST: Record<string, readonly string[]> = {
 export const buildFashnInputs = (
   modelName: string,
   context: FashnInputContext,
+  options: BuildFashnInputOptions = {},
 ) => {
-  const base = {
+  const includePrompt = options.includePrompt ?? true
+
+  const base: Record<string, unknown> = {
     output_format: 'png',
-    prompt: context.prompt,
+  }
+
+  if (includePrompt && context.prompt) {
+    base.prompt = context.prompt
   }
 
   if (modelName.startsWith('tryon')) {

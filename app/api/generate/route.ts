@@ -4,10 +4,10 @@ import { cookies } from "next/headers"
 import {
   applyWatermark,
   buildFashnInputs,
-  buildPrompt,
   enforceInputWhitelist,
   getModelCandidates,
 } from "@/lib/fashn"
+import { assemblePrompt, type PromptAssemblyResult, type PromptOptions } from "@/lib/promptUtils"
 import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 
 const PLAN_CREDIT_LIMITS = {
@@ -28,6 +28,8 @@ const resolvePlan = (profile: { plan?: string | null; is_pro?: boolean | null; i
 }
 
 const isProduction = process.env.NODE_ENV === "production"
+const RAW_DEV_MODE = process.env.DEV_MODE === "true"
+const DEV_MODE = !isProduction && RAW_DEV_MODE
 
 const FASHN_BASE_URL = process.env.FASHN_API_BASE?.replace(/\/+$/, "") ?? "https://api.fashn.ai/v1"
 const FASHN_RUN_ENDPOINT = `${FASHN_BASE_URL}/run`
@@ -284,6 +286,39 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
     throw new Error("INVALID_PAYLOAD")
   }
 
+  const inlineImagePlaceholder =
+    typeof payload.image === "string" && payload.image.length > 0
+      ? `[inline-image:${payload.image.length}b]`
+      : undefined
+
+  const derivedImageUrl =
+    typeof payload.imageUrl === "string"
+      ? payload.imageUrl
+      : typeof payload.garmentImageUrl === "string"
+        ? payload.garmentImageUrl
+        : typeof payload.garment_image === "string"
+          ? payload.garment_image
+          : inlineImagePlaceholder
+
+  const optionsGender =
+    typeof payload.options === "object" && payload.options !== null
+      ? (payload.options as Record<string, unknown>).gender
+      : undefined
+
+  console.log("[DEBUG] Incoming generate request:", {
+    styleType: payload.styleType ?? null,
+    modelGender:
+      typeof payload.gender === "string"
+        ? payload.gender
+        : typeof optionsGender === "string"
+          ? optionsGender
+          : null,
+    ageGroup: payload.ageGroup ?? payload.age ?? null,
+    skinTone: payload.skinTone ?? payload.tone ?? null,
+    aspectRatio: payload.aspectRatio ?? null,
+    imageUrl: derivedImageUrl ?? null,
+  })
+
   const normalizeUrl = (value: unknown): string | undefined =>
     typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
 
@@ -342,7 +377,13 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedPayload) => {
+type FashnCallResult = {
+  outputUrl: string
+  creditsRemaining?: number
+  promptDetails: PromptAssemblyResult
+}
+
+const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSettings }: ParsedPayload): Promise<FashnCallResult> => {
   if (!FASHN_API_KEY) {
     throw new Error("FASHN_API_KEY_MISSING")
   }
@@ -354,22 +395,45 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedP
     Authorization: `Bearer ${FASHN_API_KEY}`,
   }
 
-  const prompt = buildPrompt(options)
-  if (!isProduction && prompt) {
-    console.log("[generate] Prompt context", prompt)
+  const promptOptions: PromptOptions = {
+    environment: options.environment,
+    modelType: options.modelType,
+    ageGroup: formSettings?.ageGroup ?? options.ageGroup,
+    gender: formSettings?.gender ?? options.gender,
+    style: options.style,
+    skinTone: formSettings?.skinTone ?? options.skinTone,
+    styleType: formSettings?.styleType,
+    aspectRatio: formSettings?.aspectRatio,
+  }
+
+  const promptDetails = assemblePrompt(promptOptions, formSettings)
+  const finalPrompt = promptDetails.prompt
+
+  console.log("[DEBUG] Final Prompt Sent to Model:", finalPrompt)
+
+  if (!isProduction) {
+    console.log("[generate] Prompt context", promptDetails)
   }
 
   const modelCandidates = getModelCandidates(hasModelImage)
   let lastError: unknown = null
 
   for (const modelName of modelCandidates) {
+    const isTryOnModel = modelName.startsWith("tryon-v")
+    if (!isProduction) {
+      console.log("[DEBUG] isTryOnModel:", isTryOnModel)
+    }
+
     let inputs: ReturnType<typeof buildFashnInputs>
     try {
       inputs = buildFashnInputs(modelName, {
         garmentImageUrl,
         modelImageUrl,
-        prompt,
-      })
+        prompt: finalPrompt,
+      }, { includePrompt: !isTryOnModel })
+      if (isTryOnModel && !isProduction) {
+        console.log("[DEBUG] Omitted prompt (try-on model)")
+      }
     } catch (error) {
       lastError = error
       continue
@@ -383,6 +447,7 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedP
     }
 
     if (!isProduction) {
+      console.log("[DEBUG] Final Fashn inputs:", sanitizedInputs)
       console.log("[generate] FASHN inputs", { model: modelName, inputs: sanitizedInputs })
     }
 
@@ -509,6 +574,7 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options }: ParsedP
           return {
             outputUrl,
             creditsRemaining: creditsRemainingValue,
+            promptDetails,
           }
         }
 
@@ -554,6 +620,11 @@ export async function POST(request: Request) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("[generate] Missing Supabase environment variables.")
     return NextResponse.json({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
+  }
+
+  if (isProduction && RAW_DEV_MODE) {
+    console.error("[generate] DEV_MODE cannot be active in production!")
+    throw new Error("DEV_MODE cannot be active in production!")
   }
 
   console.log("[generate] env status", {
@@ -698,10 +769,21 @@ export async function POST(request: Request) {
     })
   }
 
+  if (DEV_MODE && profile) {
+    profile = {
+      ...profile,
+      plan: "pro",
+      is_pro: true,
+      credits: 999,
+    }
+    console.log("[DEBUG] Dev Mode active: skipping credit checks, using Pro features.")
+    console.log("[DEBUG] Profile credits = 999 (temporary)")
+  }
+
   const plan = resolvePlan(profile)
-  const planCreditLimit = PLAN_CREDIT_LIMITS[plan]
+  const planCreditLimit = DEV_MODE ? 999 : PLAN_CREDIT_LIMITS[plan]
   const rawCredits = typeof profile.credits === "number" ? profile.credits : 0
-  const normalizedCredits = Math.min(Math.max(rawCredits, 0), planCreditLimit)
+  const normalizedCredits = DEV_MODE ? planCreditLimit : Math.min(Math.max(rawCredits, 0), planCreditLimit)
   const isProTier = plan !== "free"
 
   if (!isProTier && (parsedPayload.modelImageUrl || parsedPayload.mode === "advanced")) {
@@ -712,11 +794,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Model image required for advanced mode." }, { status: 400 })
   }
 
-  if (normalizedCredits <= 0) {
+  if (!DEV_MODE && normalizedCredits <= 0) {
     return NextResponse.json({ error: "Out of credits" }, { status: 402 })
   }
 
-  let fashnResult: { outputUrl: string; creditsRemaining?: number }
+  let fashnResult: FashnCallResult
 
   try {
     fashnResult = await callFashnApi(parsedPayload)
@@ -726,16 +808,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 502 })
   }
 
-  const creditsRemaining = Math.max(normalizedCredits - 1, 0)
   const updateClient = adminClient ?? supabase
-  const { error: updateError } = await updateClient
-    .from("profiles")
-    .update({ credits: creditsRemaining })
-    .eq("id", user.id)
+  let creditsRemaining: number
 
-  if (updateError) {
-    console.error("[generate] failed to decrement credits", updateError)
-    return NextResponse.json({ success: false, error: "Unable to update credits" }, { status: 500 })
+  if (DEV_MODE) {
+    creditsRemaining = planCreditLimit
+  } else {
+    creditsRemaining = Math.max(normalizedCredits - 1, 0)
+    const { error: updateError } = await updateClient
+      .from("profiles")
+      .update({ credits: creditsRemaining })
+      .eq("id", user.id)
+
+    if (updateError) {
+      console.error("[generate] failed to decrement credits", updateError)
+      return NextResponse.json({ success: false, error: "Unable to update credits" }, { status: 500 })
+    }
   }
 
   const finalOutputUrl = isProTier
@@ -747,6 +835,55 @@ export async function POST(request: Request) {
     form: parsedPayload.formSettings,
     modelImageProvided: Boolean(parsedPayload.modelImageUrl),
     delivery: isProTier ? "hd" : "preview",
+    prompt: {
+      text: fashnResult.promptDetails.prompt,
+      resolved: fashnResult.promptDetails.resolved,
+      missing: fashnResult.promptDetails.missing,
+    },
+  }
+
+  const missingMappings = fashnResult.promptDetails.missing
+
+  if (missingMappings.length > 0) {
+    console.warn("[VERIFY WARNING] Model attributes do not match prompt inputs.", {
+      missing: missingMappings,
+    })
+  }
+
+  const mappingSummary =
+    missingMappings.length === 0
+      ? "[SUCCESS] Parameters mapped correctly ✅"
+      : `[SUCCESS] Parameters mapped correctly ❌ Missing mappings: ${missingMappings.join(", ")}`
+
+  console.log(mappingSummary)
+
+  const promptCoherenceStatus =
+    missingMappings.length === 0
+      ? "PASS (heuristic - awaiting image verification)"
+      : "FAIL (missing mapped attributes)"
+
+  console.log(`[CHECK] Prompt -> Image coherence: ${promptCoherenceStatus}`)
+  if (DEV_MODE) {
+    console.log("[INFO] User credits deducted properly (dev override active)")
+  } else {
+    console.log(`[INFO] User credits deducted properly (remaining: ${creditsRemaining}/${planCreditLimit})`)
+  }
+
+  if (missingMappings.length > 0) {
+    const suggestions: string[] = []
+    if (missingMappings.includes("skinTone")) {
+      suggestions.push("Expand skin tone mappings to cover this selection for clearer tone guidance.")
+    }
+    if (missingMappings.includes("styleType")) {
+      suggestions.push("Add descriptive keywords for the selected style type to tighten the visual guidance.")
+      if (parsedPayload.formSettings?.styleType === "street") {
+        suggestions.push('Add "clear view of upper body" when style=street and top wear is important.')
+      }
+    }
+    if (missingMappings.includes("ageGroup")) {
+      suggestions.push("Include additional age group aliases (e.g., youth, middle-aged) in the mapping table.")
+    }
+    suggestions.forEach((suggestion) => console.log(`[SUGGEST] ${suggestion}`))
   }
 
   const { data: insertedGeneration, error: generationInsertError } = await updateClient

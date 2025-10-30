@@ -41,6 +41,7 @@ interface ProfileCardProps {
   userId: string | null
   userName?: string | null
   email?: string | null
+  devMode?: boolean
 }
 
 export function ProfileCard({
@@ -53,6 +54,7 @@ export function ProfileCard({
   userId,
   userName,
   email,
+  devMode = false,
 }: ProfileCardProps) {
   const [showManageDialog, setShowManageDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -63,6 +65,11 @@ export function ProfileCard({
 
   const displayName = userName || email || 'ModelCast User'
   const displayEmail = email || 'email@modelcast.ai'
+  const creditSummary = devMode ? '∞ (Dev Mode)' : `${credits} / ${maxCredits}`
+  const statusLabel = devMode ? 'Dev sandbox' : credits > 0 ? 'Active' : 'Recharge needed'
+  const tooltipMessage = devMode
+    ? 'Dev Mode: credits are unlimited for local testing.'
+    : 'Each AI model shot costs 1 credit ($1).'
   const avatarInitials = useMemo(() => {
     if (!displayName) return 'MC'
     const matches = displayName.trim().split(/\s+/)
@@ -169,17 +176,17 @@ export function ProfileCard({
           </div>
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-help rounded-full border border-white/18 bg-white/[0.04] px-3 py-1 text-xs tracking-[0.2em] text-[var(--brand-green)]">
-                  Credits {credits} / {maxCredits}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-3 py-2 text-xs text-[var(--brand-green)]">
-                Each AI model shot costs 1 credit ($1).
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
+          <TooltipTrigger asChild>
+            <div className="cursor-help rounded-full border border-white/18 bg-white/[0.04] px-3 py-1 text-xs tracking-[0.2em] text-[var(--brand-green)]">
+              Credits {creditSummary}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-3 py-2 text-xs text-[var(--brand-green)]">
+            {tooltipMessage}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
 
         <div className="flex items-start gap-4 pt-3">
           <Avatar className="h-16 w-16 border border-white/15 bg-white/[0.08]">
@@ -222,14 +229,12 @@ export function ProfileCard({
           <div className="rounded-xl border border-white/10 bg-black/35 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Total credits</p>
             <p className="mt-3 text-xl font-semibold text-[var(--brand-green)]">
-              {credits} / {maxCredits}
+              {creditSummary}
             </p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/35 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Status</p>
-            <p className="mt-3 text-xl font-semibold text-neutral-100">
-              {credits > 0 ? 'Active' : 'Recharge needed'}
-            </p>
+            <p className="mt-3 text-xl font-semibold text-neutral-100">{statusLabel}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/35 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Price per shot</p>

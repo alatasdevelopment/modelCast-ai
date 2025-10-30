@@ -19,10 +19,11 @@ describe('FASHN helpers', () => {
       skinTone: 'warm',
     })
 
-    expect(prompt).toContain('fashion model')
-    expect(prompt).toContain('studio')
-    expect(prompt).toContain('young')
-    expect(prompt).toContain('female')
+    expect(prompt).toContain('Full-body')
+    expect(prompt).toContain('young adult female model')
+    expect(prompt).toContain('warm skin tone')
+    expect(prompt).toContain('streetwear outfit')
+    expect(prompt).toContain('studio lighting')
   })
 
   it('builds try-on inputs with both garment and model images', () => {
@@ -38,6 +39,25 @@ describe('FASHN helpers', () => {
       prompt: 'studio fashion',
       output_format: 'png',
     })
+  })
+
+  it('omits prompt for try-on models when requested', () => {
+    const inputs = buildFashnInputs(
+      'tryon-v1.6',
+      {
+        garmentImageUrl: 'https://res.cloudinary.com/demo/image/upload/garment.png',
+        modelImageUrl: 'https://res.cloudinary.com/demo/image/upload/model.png',
+        prompt: 'should be omitted',
+      },
+      { includePrompt: false },
+    )
+
+    expect(inputs).toMatchObject({
+      garment_image: expect.any(String),
+      model_image: expect.any(String),
+      output_format: 'png',
+    })
+    expect('prompt' in inputs).toBe(false)
   })
 
   it('builds product-to-model inputs with product image only', () => {

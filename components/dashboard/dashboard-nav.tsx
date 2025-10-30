@@ -16,6 +16,7 @@ interface DashboardNavProps {
   maxCredits: number
   onProfileClick: () => void
   plan?: PlanTier
+  devMode?: boolean
 }
 
 export function DashboardNav({
@@ -23,11 +24,16 @@ export function DashboardNav({
   maxCredits,
   onProfileClick,
   plan = 'free',
+  devMode = false,
 }: DashboardNavProps) {
-  const planLabel =
-    plan === 'free'
-      ? `Free plan · ${maxCredits} preview credits`
-      : `${plan === 'pro' ? 'Pro' : 'Studio'} plan · ${maxCredits} credits / month`
+  const planLabel = devMode
+    ? 'Dev Mode · unlimited credits'
+    : plan === 'free'
+        ? `Free plan · ${maxCredits} preview credits`
+        : `${plan === 'pro' ? 'Pro' : 'Studio'} plan · ${maxCredits} credits / month`
+
+  const creditsLabel = devMode ? '∞ (Dev Mode)' : `${credits} / ${maxCredits}`
+  const statusDotClass = devMode || credits > 0 ? 'bg-[var(--brand-green)]' : 'bg-yellow-400'
 
   return (
     <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0b]/90 backdrop-blur-md">
@@ -38,6 +44,12 @@ export function DashboardNav({
         </Link>
 
         <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:flex-nowrap sm:gap-5">
+          {devMode && (
+            <span className="flex items-center gap-2 rounded-full border border-white/18 bg-white/[0.08] px-3 py-1 text-xs font-semibold tracking-[0.18em] text-neutral-100">
+              <span aria-hidden>🧪</span>
+              Dev Mode Active
+            </span>
+          )}
           <TooltipProvider delayDuration={150}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -47,14 +59,14 @@ export function DashboardNav({
                   aria-label="Available credits"
                 >
                   <span
-                    className={`h-2.5 w-2.5 rounded-full ${credits > 0 ? 'bg-[var(--brand-green)]' : 'bg-yellow-400'}`}
+                    className={`h-2.5 w-2.5 rounded-full ${statusDotClass}`}
                   />
                   <div className="flex flex-col items-center leading-tight text-center">
                     <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--brand-green)] leading-none">
                       Credits
                     </span>
                     <span className="text-[11px] font-medium text-neutral-200 leading-none">
-                      {credits} / {maxCredits}
+                      {creditsLabel}
                     </span>
                   </div>
                 </button>
@@ -62,9 +74,7 @@ export function DashboardNav({
               <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-4 py-3 text-[var(--brand-green)]">
                 <div className="space-y-1 text-xs">
                   <p>{planLabel}</p>
-                  <p>
-                    {credits} / {maxCredits} credits remaining.
-                  </p>
+                  <p>{devMode ? 'Unlimited dev credits available.' : `${credits} / ${maxCredits} credits remaining.`}</p>
                 </div>
               </TooltipContent>
             </Tooltip>

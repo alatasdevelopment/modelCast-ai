@@ -29,6 +29,9 @@ const PLAN_LIMITS_MAP: Record<PlanTier, number> = {
   studio: 150,
 }
 
+const DEV_MODE_CLIENT = process.env.NEXT_PUBLIC_DEV_MODE === "true"
+const DEV_MODE_CREDITS = 999
+
 const resolvePlanTier = (
   rawPlan?: string | null,
   isProFlag?: boolean | null,
@@ -45,8 +48,8 @@ function DashboardContent() {
   const { user, signOut } = useSupabaseAuth()
   const { toast } = useToast()
 
-  const [plan, setPlan] = useState<PlanTier>("free")
-  const [credits, setCredits] = useState<number>(PLAN_LIMITS_MAP.free)
+  const [plan, setPlan] = useState<PlanTier>(DEV_MODE_CLIENT ? "pro" : "free")
+  const [credits, setCredits] = useState<number>(DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP.free)
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -200,6 +203,11 @@ function DashboardContent() {
       }
 
       if (isMounted && data) {
+        if (DEV_MODE_CLIENT) {
+          setPlan("pro")
+          setCredits(DEV_MODE_CREDITS)
+          return
+        }
         const detectedPlan = resolvePlanTier(data.plan ?? null, data.is_pro ?? null, data.is_studio ?? null)
         const planLimit = PLAN_LIMITS_MAP[detectedPlan]
         const normalizedCredits = Math.min(
@@ -231,9 +239,9 @@ function DashboardContent() {
     async (settings: GenerationSettings): Promise<string | null> => {
       const isAdvancedMode = settings.mode === "advanced"
 
-      const planLimit = PLAN_LIMITS_MAP[plan]
+      const planLimit = DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP[plan]
 
-      if (credits <= 0) {
+      if (!DEV_MODE_CLIENT && credits <= 0) {
         toast({
           title: "Out of credits",
           description:
@@ -245,7 +253,7 @@ function DashboardContent() {
         return null
       }
 
-      if (plan === "free" && isAdvancedMode) {
+      if (!DEV_MODE_CLIENT && plan === "free" && isAdvancedMode) {
         toast({
           title: "Upgrade for dual uploads",
           description: "Pro plans unlock model photo uploads and HD outputs.",
@@ -393,13 +401,15 @@ function DashboardContent() {
         latestOutputUrl = outputUrl
 
         const nextPlan = (payload?.plan as PlanTier | undefined) ?? plan
-        const nextPlanLimit = PLAN_LIMITS_MAP[nextPlan]
+        const nextPlanLimit = DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP[nextPlan]
 
-        if (payload?.plan) {
+        if (!DEV_MODE_CLIENT && payload?.plan) {
           setPlan(nextPlan)
         }
 
-        if (payload && typeof payload.creditsRemaining === "number") {
+        if (DEV_MODE_CLIENT) {
+          setCredits(DEV_MODE_CREDITS)
+        } else if (payload && typeof payload.creditsRemaining === "number") {
           setCredits(Math.min(Math.max(payload.creditsRemaining, 0), nextPlanLimit))
         } else {
           setCredits((previous) => Math.min(Math.max(previous - 1, 0), planLimit))
@@ -495,7 +505,7 @@ function DashboardContent() {
     }
   }, [router, signOut, toast])
 
-  const totalCredits = PLAN_LIMITS_MAP[plan]
+  const totalCredits = DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP[plan]
   const currentModeLabel =
     plan === "free"
       ? "Free Preview Mode (watermarked)"
@@ -510,6 +520,7 @@ function DashboardContent() {
         credits={credits}
         maxCredits={totalCredits}
         plan={plan}
+        devMode={DEV_MODE_CLIENT}
         onProfileClick={() => setIsProfileOpen(true)}
       />
 
@@ -517,10 +528,10 @@ function DashboardContent() {
         <section className="order-1 w-full space-y-6 md:order-1 md:flex-[0.6] lg:flex-[0.58]">
           <ModelGenerator
             onGenerate={handleGenerate}
-            hasCredits={credits > 0}
+            hasCredits={DEV_MODE_CLIENT ? true : credits > 0}
             modeLabel={currentModeLabel}
             onUpgradeClick={handleUpgradeClick}
-            isPro={plan !== "free"}
+            isPro={DEV_MODE_CLIENT ? true : plan !== "free"}
             plan={plan}
           />
         </section>
@@ -546,6 +557,7 @@ function DashboardContent() {
             <ProfileCard
               credits={credits}
               maxCredits={totalCredits}
+              devMode={DEV_MODE_CLIENT}
               onUpgradeClick={handleUpgradeClick}
               onClose={() => setIsProfileOpen(false)}
               onSignOut={handleSignOut}
