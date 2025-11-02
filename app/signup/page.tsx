@@ -51,7 +51,6 @@ export default function SignupPage() {
     setErrorMessage(null)
     if (formData.password !== formData.confirmPassword) {
       setErrorMessage("Passwords do not match.")
-      console.log("[v0] Password mismatch")
       return
     }
     setIsLoading(true)

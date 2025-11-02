@@ -20,7 +20,6 @@ export default function AuthPage() {
     setIsLoading(true)
     await new Promise((resolve) => setTimeout(resolve, 1000))
     setIsLoading(false)
-    console.log("[v0] Login attempt:", { email, password })
   }
 
   return (

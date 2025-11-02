@@ -43,8 +43,6 @@ export async function GET(request: Request) {
       }
     }
 
-    console.log('[cleanup] complete', { checked: resources.length, deleted, at: new Date().toISOString() })
-
     return NextResponse.json({ checked: resources.length, deleted })
   } catch (error) {
     console.error('[cleanup] failed', error)

@@ -58,6 +58,18 @@ const skinTones = [
   { id: 'dark', color: '#6B4423' },
 ]
 
+const ASPECT_RATIO_OPTIONS = [
+  { value: '1:1', label: '1:1 (Square)' },
+  { value: '2:3', label: '2:3 (Portrait Classic)' },
+  { value: '3:2', label: '3:2 (Landscape Classic)' },
+  { value: '3:4', label: '3:4 (Portrait)' },
+  { value: '4:3', label: '4:3 (Landscape)' },
+  { value: '4:5', label: '4:5 (Instagram Portrait)' },
+  { value: '5:4', label: '5:4 (Magazine)' },
+  { value: '9:16', label: '9:16 (Vertical Video)' },
+  { value: '16:9', label: '16:9 (Widescreen)' },
+]
+
 type GenerationFormState = Omit<GenerationSettings, 'garmentImageUrl' | 'modelImageUrl' | 'mode'>
 type UploadSlot = 'garment' | 'model'
 
@@ -273,6 +285,12 @@ export function ModelGenerator({
 
     setAdvancedMode(value)
   }
+
+  useEffect(() => {
+    if (modelSlotEnabled) {
+      console.log('[DEBUG] Aspect ratio disabled (try-on mode)')
+    }
+  }, [modelSlotEnabled])
 
   const isUploading = uploadingState.garment || uploadingState.model
   const upgradeTooltip = !hasCredits && plan === 'free'
@@ -640,25 +658,33 @@ export function ModelGenerator({
           </div>
         ) : null}
 
-        <div className="space-y-2.5">
-          <Label className="text-sm font-medium text-neutral-400">Aspect Ratio</Label>
-          <Select
-            value={formValues.aspectRatio}
-            onValueChange={(value) =>
-              setFormValues((current) => ({ ...current, aspectRatio: value }))
-            }
-          >
-            <SelectTrigger className="border-white/12 bg-white/[0.025] text-neutral-200 transition hover:border-white/25 hover:bg-white/[0.05]">
-              <SelectValue placeholder="Select an aspect ratio" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1:1">1:1 (Square)</SelectItem>
-              <SelectItem value="3:4">3:4 (Portrait)</SelectItem>
-              <SelectItem value="4:5">4:5 (Instagram)</SelectItem>
-              <SelectItem value="16:9">16:9 (Landscape)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {modelSlotEnabled ? (
+          <div className="space-y-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+            <p className="text-sm font-medium text-neutral-400">Aspect Ratio</p>
+            <p className="text-xs text-neutral-500">Aspect ratio is fixed for Try-On mode.</p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <Label className="text-sm font-medium text-neutral-400">Aspect Ratio</Label>
+            <Select
+              value={formValues.aspectRatio}
+              onValueChange={(value) =>
+                setFormValues((current) => ({ ...current, aspectRatio: value }))
+              }
+            >
+              <SelectTrigger className="border-white/12 bg-white/[0.025] text-neutral-200 transition hover:border-white/25 hover:bg-white/[0.05]">
+                <SelectValue placeholder="Select an aspect ratio" />
+              </SelectTrigger>
+              <SelectContent>
+                {ASPECT_RATIO_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="group">
           <Button

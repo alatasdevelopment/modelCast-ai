@@ -20,17 +20,6 @@ export const FollowerPointerCard = ({
   const [isInside, setIsInside] = useState<boolean>(false)
 
   useEffect(() => {
-    console.log("[v0] FollowerPointerCard mounted")
-    return () => {
-      console.log("[v0] FollowerPointerCard unmounted")
-    }
-  }, [])
-
-  useEffect(() => {
-    console.log("[v0] isInside changed:", isInside)
-  }, [isInside])
-
-  useEffect(() => {
     const updateRect = () => {
       if (ref.current) {
         setRect(ref.current.getBoundingClientRect())

@@ -53,16 +53,16 @@ const INPUT_WHITELIST: Record<string, readonly string[]> = {
     'product_image',
     'output_format',
     'prompt',
+    'target_aspect_ratio',
     'aspect_ratio',
     'style',
-    'width',
-    'height',
   ],
   'tryon-v1.6': [
     'model_image',
     'garment_image',
     'output_format',
     'prompt',
+    'target_aspect_ratio',
     'aspect_ratio',
     'style',
     'width',
@@ -73,6 +73,7 @@ const INPUT_WHITELIST: Record<string, readonly string[]> = {
     'garment_image',
     'output_format',
     'prompt',
+    'target_aspect_ratio',
     'aspect_ratio',
     'style',
     'width',
@@ -150,9 +151,19 @@ export const getFashnCapabilities = async (model: string) => {
     }
 
     const data = await res.json()
-    const inputs = data?.inputs ?? data ?? {}
-    console.log('[DEBUG] Fashn model capabilities:', inputs)
-    return inputs as Record<string, unknown>
+    const inputsSource = data?.inputs ?? data ?? {}
+    const inputs =
+      Array.isArray(inputsSource) && inputsSource.every((value) => typeof value === 'string')
+        ? Object.fromEntries(inputsSource.map((key: string) => [key, true]))
+        : (inputsSource as Record<string, unknown>)
+
+    const includesAspectRatio =
+      Object.prototype.hasOwnProperty.call(inputs, 'aspect_ratio') ||
+      Object.prototype.hasOwnProperty.call(inputs, 'target_aspect_ratio') ||
+      Object.prototype.hasOwnProperty.call(inputs, 'aspectRatio') ||
+      Object.prototype.hasOwnProperty.call(inputs, 'targetAspectRatio')
+
+    return inputs
   } catch (error) {
     console.warn(
       `[WARN] Error during Fashn capability probe for ${model}`,

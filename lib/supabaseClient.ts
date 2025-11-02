@@ -31,7 +31,6 @@ const supabaseGlobal = globalThis as SupabaseGlobal
 
 export function getSupabaseClient(): SupabaseClient {
   if (typeof window === "undefined") {
-    console.warn("[DEBUG] getSupabaseClient() called server-side — returning server-safe client.")
     return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
@@ -47,7 +46,6 @@ export function getSupabaseClient(): SupabaseClient {
         autoRefreshToken: true,
       },
     })
-    console.log("[DEBUG] Browser Supabase client initialized:", supabaseGlobal.__supabaseClient)
   }
 
   return supabaseGlobal.__supabaseClient
@@ -125,8 +123,6 @@ export async function fetchGenerationsSafe({
   limit = 20,
   signal,
 }: FetchGenerationsParams): Promise<FetchGenerationsResult> {
-  console.group("[DEBUG] fetchGenerationsSafe")
-
   const orderOptions = { ascending: false, nullsFirst: false }
   const primaryQuery = supabase
     .from("generations")
@@ -148,8 +144,6 @@ export async function fetchGenerationsSafe({
   }
 
   if (!primaryError && primaryData) {
-    console.log("[SUCCESS] Primary generations query succeeded:", primaryData.length)
-    console.groupEnd()
     return {
       data: primaryData,
       error: null,
@@ -170,8 +164,6 @@ export async function fetchGenerationsSafe({
   const rpcResponse = await supabase.rpc("get_generations_safe", { p_user_id: userId })
 
   if (!rpcResponse.error && rpcResponse.data) {
-    console.log("[FALLBACK] RPC succeeded:", rpcResponse.data.length)
-    console.groupEnd()
     return {
       data: rpcResponse.data as GenerationRow[],
       error: null,
@@ -185,7 +177,6 @@ export async function fetchGenerationsSafe({
     console.warn("[WARN] RPC fallback failed:", rpcResponse.error.message)
     if (rpcResponse.error.message?.toLowerCase().includes("function get_generations_safe")) {
       missingRpc = true
-      console.warn("[DEBUG] RPC/view not found — instruct user to run SQL setup for get_generations_safe.")
     }
   }
 
@@ -210,8 +201,6 @@ export async function fetchGenerationsSafe({
   }
 
   if (!viewError && viewData) {
-    console.log("[FALLBACK] View succeeded:", viewData.length)
-    console.groupEnd()
     return {
       data: viewData,
       error: null,
@@ -225,11 +214,8 @@ export async function fetchGenerationsSafe({
     console.error("[FATAL] View fallback failed:", viewError.message)
     if (viewError.message?.toLowerCase().includes('relation "generations_view"')) {
       missingView = true
-      console.warn("[DEBUG] RPC/view not found — instruct user to run SQL setup for generations_view.")
     }
   }
-
-  console.groupEnd()
 
   if (typeof window !== "undefined") {
     window.alert(
