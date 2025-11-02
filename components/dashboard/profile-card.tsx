@@ -77,34 +77,6 @@ export function ProfileCard({
     return `${matches[0][0] ?? ''}${matches[1][0] ?? ''}`.toUpperCase()
   }, [displayName])
 
-  const attemptAdminDeletion = async (id: string) => {
-    // Browsers instantiated with anon keys cannot access the admin API.
-    if (
-      !('admin' in supabaseClient.auth) ||
-      typeof supabaseClient.auth.admin?.deleteUser !== 'function'
-    ) {
-      throw new Error('fallback-signout')
-    }
-
-    // @ts-expect-error admin deleteUser requires service role keys and may not be typed for browser clients
-    const { error } = await supabaseClient.auth.admin.deleteUser(id)
-
-    if (error) {
-      const status = 'status' in error ? error.status : undefined
-      // Allow fallback when running with anon key only
-      if (
-        status === 401 ||
-        status === 403 ||
-        (typeof error.message === 'string' &&
-          error.message.toLowerCase().includes('service role'))
-      ) {
-        throw new Error('fallback-signout')
-      }
-
-      throw error
-    }
-  }
-
   const handleDeleteAccount = async () => {
     if (isDeleting) return
     setIsDeleting(true)
@@ -114,14 +86,19 @@ export function ProfileCard({
         throw new Error('Unable to locate your account. Refresh and try again.')
       }
 
-      try {
-        await attemptAdminDeletion(userId)
-      } catch (error) {
-        if (error instanceof Error && error.message === 'fallback-signout') {
-          // No admin privileges available, fall back to a regular sign-out below.
-        } else {
-          throw error
-        }
+      const response = await fetch('/api/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        const message =
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Unable to delete your account at the moment. Please try again.'
+        throw new Error(message)
       }
 
       const { error: signOutError } = await supabaseClient.auth.signOut()
@@ -130,10 +107,11 @@ export function ProfileCard({
       }
 
       toast({
-        title: 'Account deleted successfully',
-        description: 'We hope to see you again soon.',
+        title: 'Account deleted',
+        description: 'Your account has been permanently deleted. We hope to see you again.',
       })
 
+      setShowManageDialog(false)
       setShowDeleteDialog(false)
       onClose?.()
       router.replace('/')
@@ -258,6 +236,17 @@ export function ProfileCard({
         Log out
       </Button>
 
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-3 w-full justify-center gap-2 rounded-xl border-red-500/30 bg-red-500/5 text-sm font-semibold text-red-300 transition-all duration-200 hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-500/10 hover:text-red-200"
+        onClick={() => setShowDeleteDialog(true)}
+        disabled={isDeleting}
+      >
+        <AlertTriangle className="h-4 w-4" />
+        Delete my account
+      </Button>
+
       <Dialog open={showManageDialog} onOpenChange={setShowManageDialog}>
         <DialogContent className="border-white/10 bg-[#101010]/95 px-6 py-6 text-white shadow-[0_0_28px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:px-9">
           <DialogHeader className="space-y-2">
@@ -310,14 +299,14 @@ export function ProfileCard({
               </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-white/90">
+            <AlertDialogCancel className="rounded-lg border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-neutral-200 transition hover:bg-white/15 hover:text-white">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction asChild>
               <Button
                 type="button"
                 variant="destructive"
-                className="gap-2"
+                className="gap-2 rounded-lg bg-red-500/90 text-sm font-semibold text-white shadow-[0_0_18px_rgba(255,0,0,0.25)] transition hover:bg-red-500"
                 disabled={isDeleting}
                 onClick={() => void handleDeleteAccount()}
               >
