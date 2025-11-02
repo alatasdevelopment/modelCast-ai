@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { Download, Loader2, Sparkles } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
-import { toast } from '@/hooks/use-toast'
 import type { GeneratedImage, FlattenedGeneratedImage } from '@/components/dashboard/types'
 import { ensureModelcastWatermark } from '@/lib/cloudinary'
 
@@ -14,9 +13,10 @@ import { AllGenerationsDialog } from './all-generations-dialog'
 interface RecentGenerationsProps {
   images: GeneratedImage[]
   isGenerating?: boolean
+  onDownload: (url: string, isWatermarked: boolean) => void | Promise<void>
 }
 
-export function RecentGenerations({ images, isGenerating = false }: RecentGenerationsProps) {
+export function RecentGenerations({ images, isGenerating = false, onDownload }: RecentGenerationsProps) {
   const [showDialog, setShowDialog] = useState(false)
   const [brokenIds, setBrokenIds] = useState<Record<string, boolean>>({})
 
@@ -41,59 +41,54 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
       ...previous,
       [id]: true,
     }))
-
-  const handleDownload = async (url: string, isWatermarked: boolean) => {
-    try {
-      const response = await fetch(url, { mode: 'cors' })
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-      const blob = await response.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      const suffix = isWatermarked ? '_watermarked' : ''
-      link.href = blobUrl
-      link.download = `modelcast_output${suffix}.png`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(blobUrl)
-      toast({
-        title: 'Download started',
-        description: isWatermarked ? 'Watermarked preview saved to your device.' : 'HD image saved to your device.',
-      })
-    } catch (error) {
-      console.error('[recent-generations] download failed', error)
-      toast({
-        title: 'Download failed',
-        description: 'Please try again in a moment.',
-        variant: 'destructive',
-      })
-    }
-  }
-
   const cardBaseClass =
-    'group rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 flex min-h-[240px] flex-col items-center justify-center text-center space-y-3 shadow-inner shadow-black/30 transition-all duration-200 ease-out hover:scale-[1.02] hover:border-[#9FFF57]/40 hover:ring-1 hover:ring-[#9FFF57]/20'
+    'group flex w-full flex-col items-center rounded-xl border border-neutral-800 bg-neutral-900/60 p-4 text-center shadow-inner shadow-black/30 transition-all duration-200 ease-out hover:scale-[1.02] hover:border-[#9FFF57]/40 hover:ring-1 hover:ring-[#9FFF57]/20'
+
+  const PlaceholderContent = ({
+    title,
+    subtitle,
+    icon,
+  }: {
+    title: string
+    subtitle: string
+    icon: 'logo' | 'spinner'
+  }) => (
+    <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-white/10 bg-neutral-950/70">
+      {icon === 'spinner' ? (
+        <Loader2 className="h-7 w-7 animate-spin text-[#9FFF57]" />
+      ) : (
+        <Image
+          src="/logos/img-generation.png"
+          alt="ModelCast logo placeholder"
+          width={44}
+          height={44}
+          className="h-11 w-11 object-contain brightness-0 invert"
+        />
+      )}
+      <p className="text-sm font-semibold text-neutral-200">{title}</p>
+      <p className="max-w-[200px] text-[11px] uppercase tracking-wide text-neutral-500">{subtitle}</p>
+    </div>
+  )
 
   const loadingStateCard = (
     <div className={cardBaseClass}>
-      <Loader2 className="h-7 w-7 animate-spin text-[#9FFF57]" />
-      <p className="text-sm text-neutral-300">Preparing previews…</p>
-      <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview (Watermarked · Standard Resolution)</p>
+      <PlaceholderContent
+        title="Preparing previews…"
+        subtitle="Preview (Watermarked · Standard Resolution)"
+        icon="spinner"
+      />
+      <div className="invisible mt-3 h-9 w-[70%] rounded-xl sm:w-[60%]" />
     </div>
   )
 
   const emptyStateCard = (
     <div className={cardBaseClass}>
-      <Image
-        src="/logos/img-generation.png"
-        alt="ModelCast logo placeholder"
-        width={40}
-        height={40}
-        className="h-10 w-10 object-contain brightness-0 invert"
+      <PlaceholderContent
+        title="No generations yet"
+        subtitle="Preview (Watermarked · Standard Resolution)"
+        icon="logo"
       />
-      <p className="text-sm font-semibold text-neutral-200">No generations yet</p>
-      <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview (Watermarked · Standard Resolution)</p>
+      <div className="invisible mt-3 h-9 w-[70%] rounded-xl sm:w-[60%]" />
     </div>
   )
 
@@ -108,46 +103,44 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
       <div key={image.id} className="group flex flex-col text-center">
         <div className={cardBaseClass}>
           {isBroken ? (
-            <>
-              <Image
-                src="/logos/img-generation.png"
-                alt="ModelCast logo placeholder"
-                width={40}
-                height={40}
-                className="h-10 w-10 object-contain brightness-0 invert"
-              />
-              <p className="text-sm font-semibold text-neutral-200">Preview not available</p>
-              <p className="text-[11px] uppercase tracking-wide text-neutral-600">Preview (Watermarked · Standard Resolution)</p>
-            </>
+            <PlaceholderContent
+              title="Preview not available"
+              subtitle="Preview (Watermarked · Standard Resolution)"
+              icon="logo"
+            />
           ) : (
-            <>
-              <div className="w-full overflow-hidden rounded-lg bg-neutral-950/70">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={displayUrl}
-                  alt="Generated model"
-                  className="aspect-[4/5] w-full object-cover transition-all duration-200 ease-out group-hover:scale-[1.02]"
-                  onError={() => handleImageError(image.id)}
-                />
-              </div>
-              <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                {image.plan === 'free'
-                  ? 'Preview (Watermarked · Standard Resolution)'
-                  : 'HD Result'}
-              </p>
+            <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-white/10 bg-neutral-950/70">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={displayUrl}
+                alt="Generated model"
+                className="h-full w-full object-cover transition-all duration-200 ease-out group-hover:scale-[1.02]"
+                onError={() => handleImageError(image.id)}
+              />
+            </div>
+          )}
+          <div className="mt-3 flex w-full flex-col items-center gap-2">
+            <p className="text-[11px] uppercase tracking-wide text-neutral-600">
+              {image.plan === 'free'
+                ? 'Preview (Watermarked · Standard Resolution)'
+                : 'HD Result'}
+            </p>
+            {isBroken ? (
+              <div className="h-9 w-[70%] rounded-xl border border-white/10 sm:w-[60%]" />
+            ) : (
               <button
                 type="button"
-                className="mt-2 mx-auto inline-flex w-[70%] items-center justify-center rounded-xl bg-white py-1.5 text-xs text-black transition-colors duration-200 ease-out hover:bg-neutral-200 sm:w-[60%]"
+                className="inline-flex w-[70%] items-center justify-center rounded-xl bg-white py-1.5 text-xs text-black transition-colors duration-200 ease-out hover:bg-neutral-200 sm:w-[60%]"
                 onClick={() => {
-                  void handleDownload(downloadUrl, shouldWatermark)
+                  void onDownload(downloadUrl, shouldWatermark)
                 }}
                 aria-label="Download"
                 title={shouldWatermark ? 'Download (watermarked)' : 'Download'}
               >
                 <Download className="h-4 w-4" />
               </button>
-            </>
-          )}
+            )}
+          </div>
         </div>
         <div className="mt-2 flex flex-col items-center justify-center space-y-2">
           <p className="text-xs text-neutral-500">
@@ -198,7 +191,7 @@ export function RecentGenerations({ images, isGenerating = false }: RecentGenera
         images={flattened}
         brokenIds={brokenIds}
         onImageError={handleImageError}
-        onDownload={handleDownload}
+        onDownload={onDownload}
       />
     </>
   )

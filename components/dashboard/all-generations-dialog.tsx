@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { Download } from 'lucide-react'
+import { Download, Loader2 } from 'lucide-react'
 
 import {
   Dialog,
@@ -33,7 +33,33 @@ export function AllGenerationsDialog({
   onDownload,
 }: AllGenerationsDialogProps) {
   const cardBaseClass =
-    'group rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 flex flex-col items-center justify-center text-center space-y-2 shadow-inner shadow-black/30 transition-all duration-200 ease-out hover:scale-[1.02] hover:border-[#9FFF57]/40 hover:ring-1 hover:ring-[#9FFF57]/20'
+    'group flex w-full flex-col items-center rounded-xl border border-neutral-800 bg-neutral-900/60 p-3 text-center shadow-inner shadow-black/30 transition-all duration-200 ease-out hover:scale-[1.02] hover:border-[#9FFF57]/40 hover:ring-1 hover:ring-[#9FFF57]/20'
+
+  const PlaceholderContent = ({
+    title,
+    subtitle,
+    icon,
+  }: {
+    title: string
+    subtitle: string
+    icon: 'logo' | 'spinner'
+  }) => (
+    <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-white/10 bg-neutral-950/70">
+      {icon === 'spinner' ? (
+        <Loader2 className="h-6 w-6 animate-spin text-[#9FFF57]" />
+      ) : (
+        <Image
+          src="/logos/img-generation.png"
+          alt="ModelCast logo placeholder"
+          width={40}
+          height={40}
+          className="h-10 w-10 object-contain brightness-0 invert"
+        />
+      )}
+      <p className="text-sm font-semibold text-neutral-200">{title}</p>
+      <p className="max-w-[200px] text-[11px] uppercase tracking-wide text-neutral-500">{subtitle}</p>
+    </div>
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -51,17 +77,12 @@ export function AllGenerationsDialog({
           <div className="grid grid-cols-1 gap-4 overflow-y-auto max-h-[70vh] p-2 sm:grid-cols-2">
             {images.length === 0 ? (
               <div className={`col-span-full ${cardBaseClass}`}>
-                <Image
-                  src="/logos/img-generation.png"
-                  alt="ModelCast logo placeholder"
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 object-contain brightness-0 invert"
+                <PlaceholderContent
+                  title="No generations yet"
+                  subtitle="Preview (Watermarked · Standard Resolution)"
+                  icon="logo"
                 />
-                <p className="text-sm font-semibold text-neutral-200">No generations yet</p>
-                <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                  Preview (Watermarked · Standard Resolution)
-                </p>
+                <div className="invisible mt-3 h-9 w-[70%] rounded-xl sm:w-[60%]" />
               </div>
             ) : (
               images.map((image) => {
@@ -77,38 +98,34 @@ export function AllGenerationsDialog({
                   <div key={image.id} className="flex flex-col items-center">
                     <div className={cardBaseClass}>
                       {isBroken ? (
-                        <>
-                          <Image
-                            src="/logos/img-generation.png"
-                            alt="ModelCast logo placeholder"
-                            width={40}
-                            height={40}
-                            className="h-10 w-10 object-contain brightness-0 invert"
-                          />
-                          <p className="text-sm font-semibold text-neutral-200">Preview not available</p>
-                          <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                            Preview (Watermarked · Standard Resolution)
-                          </p>
-                        </>
+                        <PlaceholderContent
+                          title="Preview not available"
+                          subtitle="Preview (Watermarked · Standard Resolution)"
+                          icon="logo"
+                        />
                       ) : (
-                        <>
-                          <div className="w-full overflow-hidden rounded-lg bg-neutral-950/70">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={displayUrl}
-                              alt="Generated model"
-                              className="aspect-[4/5] w-full object-cover transition-all duration-200 ease-out group-hover:scale-[1.02]"
-                              onError={() => onImageError(image.id)}
-                            />
-                          </div>
-                          <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                            {image.plan === 'free'
-                              ? 'Preview (Watermarked · Standard Resolution)'
-                              : 'HD Result'}
-                          </p>
+                        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-white/10 bg-neutral-950/70">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={displayUrl}
+                            alt="Generated model"
+                            className="h-full w-full object-cover transition-all duration-200 ease-out group-hover:scale-[1.02]"
+                            onError={() => onImageError(image.id)}
+                          />
+                        </div>
+                      )}
+                      <div className="mt-3 flex w-full flex-col items-center gap-2">
+                        <p className="text-[11px] uppercase tracking-wide text-neutral-600">
+                          {image.plan === 'free'
+                            ? 'Preview (Watermarked · Standard Resolution)'
+                            : 'HD Result'}
+                        </p>
+                        {isBroken ? (
+                          <div className="h-9 w-[70%] rounded-xl border border-white/10 sm:w-[60%]" />
+                        ) : (
                           <button
                             type="button"
-                            className="mt-2 mx-auto inline-flex w-[70%] items-center justify-center rounded-xl bg-white py-1.5 text-xs text-black transition-colors duration-200 ease-out hover:bg-neutral-200 sm:w-[60%]"
+                            className="inline-flex w-[70%] items-center justify-center rounded-xl bg-white py-1.5 text-xs text-black transition-colors duration-200 ease-out hover:bg-neutral-200 sm:w-[60%]"
                             onClick={() => {
                               void onDownload(downloadUrl, shouldWatermark)
                             }}
@@ -117,8 +134,8 @@ export function AllGenerationsDialog({
                           >
                             <Download className="h-4 w-4" />
                           </button>
-                        </>
-                      )}
+                        )}
+                      </div>
                     </div>
                     <p className="mt-2 text-xs text-neutral-500">
                       {image.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

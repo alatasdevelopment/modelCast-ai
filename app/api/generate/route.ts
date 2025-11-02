@@ -5,6 +5,7 @@ import {
   applyWatermark,
   buildFashnInputs,
   enforceInputWhitelist,
+  getFashnCapabilities,
   getModelCandidates,
 } from "@/lib/fashn"
 import { assemblePrompt, type PromptAssemblyResult, type PromptOptions } from "@/lib/promptUtils"
@@ -39,6 +40,106 @@ const CLOUDINARY_PREFIX = "https://res.cloudinary.com/"
 const FASHN_TIMEOUT_MS = 60_000
 const FASHN_STATUS_POLL_INTERVAL_MS = 2000
 const FASHN_STATUS_TIMEOUT_MS = 60_000
+
+type FashnCapabilitySummary = {
+  aspect_ratio: boolean
+  style: boolean
+  width: boolean
+  height: boolean
+  raw: Record<string, unknown>
+}
+
+const ASPECT_RATIO_ALIAS_MAP: Record<string, string> = {
+  square: "1:1",
+  portrait: "3:4",
+  landscape: "16:9",
+  vertical: "3:4",
+  horizontal: "16:9",
+  "4x5": "4:5",
+  "5x4": "5:4",
+  "3x4": "3:4",
+  "4x3": "4:3",
+  "16x9": "16:9",
+  "9x16": "9:16",
+}
+
+const ASPECT_RATIO_RESOLUTION_MAP: Record<string, [number, number]> = {
+  "1:1": [1024, 1024],
+  "3:4": [768, 1024],
+  "4:3": [1024, 768],
+  "4:5": [1024, 1280],
+  "5:4": [1280, 1024],
+  "16:9": [1280, 720],
+  "9:16": [720, 1280],
+}
+
+const summarizeFashnCapabilities = (raw: Record<string, unknown>): FashnCapabilitySummary => {
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(raw, key)
+
+  const aspectSupported =
+    has("aspect_ratio") || has("aspectRatio") || has("aspect-ratio") || raw["aspect_ratio"] != null
+
+  const styleSupported =
+    has("style") || has("style_type") || has("styleType") || raw["style_type"] != null
+
+  const widthSupported =
+    has("width") || has("image_width") || has("output_width") || raw["width"] != null
+
+  const heightSupported =
+    has("height") || has("image_height") || has("output_height") || raw["height"] != null
+
+  return {
+    aspect_ratio: Boolean(aspectSupported),
+    style: Boolean(styleSupported),
+    width: Boolean(widthSupported),
+    height: Boolean(heightSupported),
+    raw,
+  }
+}
+
+const normalizeAspectRatioValue = (value?: string) => {
+  if (!value) {
+    return { requested: undefined, normalized: undefined, numeric: undefined }
+  }
+  const trimmed = value.trim().toLowerCase()
+  if (!trimmed) {
+    return { requested: undefined, normalized: undefined, numeric: undefined }
+  }
+  const aliasResolved = ASPECT_RATIO_ALIAS_MAP[trimmed] ?? trimmed.replace("x", ":")
+  const ratioMatch = aliasResolved.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/)
+  if (!ratioMatch) {
+    return { requested: value, normalized: aliasResolved, numeric: undefined }
+  }
+  const width = Number.parseFloat(ratioMatch[1])
+  const height = Number.parseFloat(ratioMatch[2])
+  if (!Number.isFinite(width) || !Number.isFinite(height) || height === 0) {
+    return { requested: value, normalized: aliasResolved, numeric: undefined }
+  }
+  const numeric = Number((width / height).toFixed(2))
+  return { requested: value, normalized: aliasResolved, numeric }
+}
+
+const computeRatioFromDimensions = (width?: number, height?: number) => {
+  if (!width || !height || width <= 0 || height <= 0) {
+    return undefined
+  }
+  return Number((width / height).toFixed(2))
+}
+
+const toNumberOrUndefined = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    const parsed = Number.parseFloat(trimmed)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -291,6 +392,8 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
       ? `[inline-image:${payload.image.length}b]`
       : undefined
 
+  const normalizedOptions = normalizeOptions(payload)
+
   const derivedImageUrl =
     typeof payload.imageUrl === "string"
       ? payload.imageUrl
@@ -305,8 +408,12 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
       ? (payload.options as Record<string, unknown>).gender
       : undefined
 
-  console.log("[DEBUG] Incoming generate request:", {
+  console.log("[DEBUG] Incoming UI Params:", {
     styleType: payload.styleType ?? null,
+    aspectRatio: payload.aspectRatio ?? null,
+    mode: payload.mode ?? null,
+    environment: normalizedOptions.environment ?? null,
+    modelType: normalizedOptions.modelType ?? null,
     modelGender:
       typeof payload.gender === "string"
         ? payload.gender
@@ -314,8 +421,8 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
           ? optionsGender
           : null,
     ageGroup: payload.ageGroup ?? payload.age ?? null,
-    skinTone: payload.skinTone ?? payload.tone ?? null,
-    aspectRatio: payload.aspectRatio ?? null,
+    skinTone: payload.skinTone ?? payload.tone ?? normalizedOptions.skinTone ?? null,
+    style: normalizedOptions.style ?? null,
     imageUrl: derivedImageUrl ?? null,
   })
 
@@ -369,7 +476,7 @@ const parseRequestPayload = async (request: Request): Promise<ParsedPayload> => 
   return {
     modelImageUrl,
     garmentImageUrl,
-    options: normalizeOptions(payload),
+    options: normalizedOptions,
     mode,
     formSettings,
   }
@@ -381,6 +488,16 @@ type FashnCallResult = {
   outputUrl: string
   creditsRemaining?: number
   promptDetails: PromptAssemblyResult
+  modelName: string
+  capabilities: FashnCapabilitySummary
+  outputMetadata?: Record<string, unknown> | null
+  outputDimensions?: {
+    width?: number
+    height?: number
+    ratio?: number
+  }
+  inputsSent: Record<string, unknown>
+  warnings: string[]
 }
 
 const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSettings }: ParsedPayload): Promise<FashnCallResult> => {
@@ -417,8 +534,18 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
 
   const modelCandidates = getModelCandidates(hasModelImage)
   let lastError: unknown = null
+  const capabilityCache = new Map<string, FashnCapabilitySummary>()
+  const aspectRatioInfo = normalizeAspectRatioValue(formSettings?.aspectRatio)
+  const resolvedStyleInput = options.style ?? mapStyleTypeToStyle(formSettings?.styleType)
+  let resolvedCapabilities: FashnCapabilitySummary | null = null
 
   for (const modelName of modelCandidates) {
+    const attemptWarnings: string[] = []
+    const recordWarning = (message: string) => {
+      console.warn(message)
+      attemptWarnings.push(message)
+    }
+
     const isTryOnModel = modelName.startsWith("tryon-v")
     if (!isProduction) {
       console.log("[DEBUG] isTryOnModel:", isTryOnModel)
@@ -439,15 +566,58 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
       continue
     }
 
-    const sanitizedInputs = enforceInputWhitelist(modelName, inputs)
-    const removedKeys = Object.keys(inputs).filter((key) => !(key in sanitizedInputs))
+    let capabilitySummary = capabilityCache.get(modelName)
+    if (!capabilitySummary) {
+      const rawCapabilities = await getFashnCapabilities(modelName)
+      capabilitySummary = summarizeFashnCapabilities(rawCapabilities)
+      capabilityCache.set(modelName, capabilitySummary)
+    }
+    resolvedCapabilities = capabilitySummary
 
-    if (removedKeys.length > 0) {
-      console.warn(`[generate] Dropped unsupported FASHN input keys for ${modelName}`, removedKeys)
+    console.log(`[DEBUG] Fashn capabilities (${modelName}):`, {
+      aspect_ratio: capabilitySummary.aspect_ratio,
+      style: capabilitySummary.style,
+      width: capabilitySummary.width,
+      height: capabilitySummary.height,
+    })
+
+    const enrichedInputs: Record<string, unknown> = { ...inputs }
+
+    if (aspectRatioInfo.normalized) {
+      if (!aspectRatioInfo.normalized.includes(":")) {
+        recordWarning(`[WARN] Unsupported aspect ratio format "${aspectRatioInfo.normalized}", skipping.`)
+      } else if (capabilitySummary.aspect_ratio) {
+        enrichedInputs.aspect_ratio = aspectRatioInfo.normalized
+      } else {
+        recordWarning("[WARN] aspect_ratio not supported by this model, skipping.")
+        const resolution = ASPECT_RATIO_RESOLUTION_MAP[aspectRatioInfo.normalized]
+        if (resolution && (capabilitySummary.width || capabilitySummary.height)) {
+          enrichedInputs.width = resolution[0]
+          enrichedInputs.height = resolution[1]
+          console.log("[DEBUG] Enforced aspect via resolution:", resolution[0], "x", resolution[1])
+        } else if (resolution) {
+          recordWarning("[WARN] width/height not supported by this model, unable to enforce aspect via resolution.")
+        }
+      }
     }
 
+    if (resolvedStyleInput) {
+      if (capabilitySummary.style) {
+        enrichedInputs.style = resolvedStyleInput
+      } else {
+        recordWarning("[WARN] style not supported by this model, skipping.")
+      }
+    }
+
+    const sanitizedInputs = enforceInputWhitelist(modelName, enrichedInputs)
+    const removedKeys = Object.keys(enrichedInputs).filter((key) => !(key in sanitizedInputs))
+
+    if (removedKeys.length > 0) {
+      recordWarning(`[generate] Dropped unsupported FASHN input keys for ${modelName}: ${removedKeys.join(", ")}`)
+    }
+
+    console.log("[DEBUG] Final Fashn Inputs Sent:", sanitizedInputs)
     if (!isProduction) {
-      console.log("[DEBUG] Final Fashn inputs:", sanitizedInputs)
       console.log("[generate] FASHN inputs", { model: modelName, inputs: sanitizedInputs })
     }
 
@@ -571,10 +741,52 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
           const creditsRemainingValue =
             typeof statusPayload.credits_remaining === "number" ? statusPayload.credits_remaining : undefined
 
+          const statusRecord = statusPayload as unknown as Record<string, unknown>
+          const metadataCandidate =
+            (statusRecord.metadata as Record<string, unknown> | undefined) ??
+            (statusRecord.output_metadata as Record<string, unknown> | undefined) ??
+            (statusRecord.output_meta as Record<string, unknown> | undefined) ??
+            undefined
+
+          const arrayMeta =
+            Array.isArray(statusPayload.output) && typeof statusPayload.output[0] === "object"
+              ? (statusPayload.output[0] as Record<string, unknown>)
+              : undefined
+
+          const combinedMetadata = metadataCandidate ?? arrayMeta ?? null
+
+          const derivedWidth =
+            toNumberOrUndefined(statusRecord.width) ??
+            toNumberOrUndefined(statusRecord.output_width) ??
+            (combinedMetadata ? toNumberOrUndefined(combinedMetadata.width) : undefined) ??
+            (combinedMetadata && typeof combinedMetadata.dimensions === "object"
+              ? toNumberOrUndefined((combinedMetadata.dimensions as Record<string, unknown>).width)
+              : undefined)
+
+          const derivedHeight =
+            toNumberOrUndefined(statusRecord.height) ??
+            toNumberOrUndefined(statusRecord.output_height) ??
+            (combinedMetadata ? toNumberOrUndefined(combinedMetadata.height) : undefined) ??
+            (combinedMetadata && typeof combinedMetadata.dimensions === "object"
+              ? toNumberOrUndefined((combinedMetadata.dimensions as Record<string, unknown>).height)
+              : undefined)
+
+          const dimensionSummary = {
+            width: derivedWidth,
+            height: derivedHeight,
+            ratio: computeRatioFromDimensions(derivedWidth, derivedHeight),
+          }
+
           return {
             outputUrl,
             creditsRemaining: creditsRemainingValue,
             promptDetails,
+            modelName,
+            capabilities: resolvedCapabilities ?? summarizeFashnCapabilities({}),
+            outputMetadata: combinedMetadata,
+            outputDimensions: dimensionSummary,
+            inputsSent: sanitizedInputs,
+            warnings: attemptWarnings,
           }
         }
 
@@ -808,6 +1020,84 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: message }, { status: 502 })
   }
 
+  const requestedAspectSummary = normalizeAspectRatioValue(parsedPayload.formSettings?.aspectRatio)
+  const capabilityLog = {
+    aspect_ratio: fashnResult.capabilities.aspect_ratio,
+    style: fashnResult.capabilities.style,
+    width: fashnResult.capabilities.width,
+    height: fashnResult.capabilities.height,
+  }
+  const debugWarnings = [...fashnResult.warnings]
+  const aspectChecks: Array<{ message: string; status: "pass" | "warn" | "info" }> = []
+  console.log(`[DEBUG] Fashn Capabilities (${fashnResult.modelName}):`, capabilityLog)
+
+  if (fashnResult.outputDimensions) {
+    console.log("[DEBUG] Output Meta (if available):", fashnResult.outputDimensions)
+  } else {
+    console.log("[DEBUG] Output Meta (if available): null")
+  }
+
+  const formatRatio = (value?: number) => (typeof value === "number" ? value.toFixed(2) : "unknown")
+  if (requestedAspectSummary.numeric && typeof fashnResult.outputDimensions?.ratio === "number") {
+    const requestedRatioFormatted = formatRatio(requestedAspectSummary.numeric)
+    const outputRatioFormatted = formatRatio(fashnResult.outputDimensions.ratio)
+    const ratioDelta = Math.abs(fashnResult.outputDimensions.ratio - requestedAspectSummary.numeric)
+    if (ratioDelta > 0.05) {
+      const mismatchMessage = `[CHECK] Output ratio ${outputRatioFormatted} != requested ${requestedRatioFormatted} → mismatch`
+      console.log(mismatchMessage)
+      debugWarnings.push(mismatchMessage)
+      aspectChecks.push({ message: mismatchMessage, status: "warn" })
+    } else {
+      const matchMessage = `[CHECK] Output ratio ${outputRatioFormatted} ≈ requested ${requestedRatioFormatted}`
+      console.log(matchMessage)
+      aspectChecks.push({ message: matchMessage, status: "pass" })
+    }
+  } else if (requestedAspectSummary.normalized) {
+    const unavailableMessage = `[CHECK] Output ratio unavailable to compare against requested ${requestedAspectSummary.normalized}`
+    console.log(unavailableMessage)
+    aspectChecks.push({ message: unavailableMessage, status: "info" })
+  }
+
+  const requestedStyleType = parsedPayload.formSettings?.styleType ?? undefined
+  const requestedStyleNormalized = requestedStyleType?.trim().toLowerCase()
+  if (requestedStyleNormalized) {
+    const metadataSignals: string[] = []
+    const outputMetadata = fashnResult.outputMetadata ?? undefined
+    if (outputMetadata && typeof outputMetadata === "object") {
+      const record = outputMetadata as Record<string, unknown>
+      ;["style", "style_type", "environment"].forEach((key) => {
+        const value = record[key]
+        if (typeof value === "string") {
+          metadataSignals.push(value.toLowerCase())
+        }
+      })
+    }
+    const promptSignal = fashnResult.promptDetails.prompt.toLowerCase()
+    const hasMetadataMatch = metadataSignals.some((entry) => entry.includes(requestedStyleNormalized))
+    const metadataSuggestsStudio = metadataSignals.some((entry) => entry.includes("studio"))
+    if (metadataSignals.length > 0 && !hasMetadataMatch) {
+      let warningMessage: string
+      if (metadataSuggestsStudio && requestedStyleNormalized === "street") {
+        warningMessage = '[VERIFY WARNING] Output style metadata leans "studio" while "street" was requested.'
+        console.warn(warningMessage)
+      } else {
+        warningMessage = `[VERIFY WARNING] Output style inconsistent with requested "${requestedStyleType}".`
+        console.warn(warningMessage)
+      }
+      debugWarnings.push(warningMessage)
+      console.log('[SUGGESTION] Try adding "urban environment, natural light" to prompt context.')
+    } else if (
+      requestedStyleNormalized === "street" &&
+      !metadataSignals.length &&
+      !promptSignal.includes("street")
+    ) {
+      const warningMessage = '[VERIFY WARNING] Unable to confirm "street" styling in generated output.'
+      console.warn(warningMessage)
+      debugWarnings.push(warningMessage)
+      console.log('[SUGGESTION] Try adding "urban environment, natural light" to prompt context.')
+    }
+  }
+
   const updateClient = adminClient ?? supabase
   let creditsRemaining: number
 
@@ -826,9 +1116,36 @@ export async function POST(request: Request) {
     }
   }
 
-  const finalOutputUrl = isProTier
-    ? fashnResult.outputUrl
-    : applyWatermark(fashnResult.outputUrl, { width: 1024, cacheBust: true })
+  const previewModeActive = !isProTier
+  // TODO: Revisit watermark handling to return true preview-quality assets for non-pro tiers.
+  if (previewModeActive) {
+    console.log("[TODO] Watermark mode not yet implemented")
+  }
+
+  const finalOutputUrl = previewModeActive
+    ? applyWatermark(fashnResult.outputUrl, { width: 1024, cacheBust: true })
+    : fashnResult.outputUrl
+
+  const outputSummary = {
+    width: fashnResult.outputDimensions?.width ?? null,
+    height: fashnResult.outputDimensions?.height ?? null,
+    ratio: fashnResult.outputDimensions?.ratio ?? null,
+    metadata: fashnResult.outputMetadata ?? null,
+  }
+
+  const aspectDebug = {
+    model: fashnResult.modelName,
+    ui: {
+      requested: parsedPayload.formSettings?.aspectRatio ?? null,
+      normalized: requestedAspectSummary.normalized ?? null,
+      numeric: requestedAspectSummary.numeric ?? null,
+    },
+    capabilities: capabilityLog,
+    inputs: fashnResult.inputsSent,
+    output: outputSummary,
+    warnings: debugWarnings,
+    checks: aspectChecks,
+  }
 
   const metadata = {
     options: parsedPayload.options,
@@ -840,14 +1157,25 @@ export async function POST(request: Request) {
       resolved: fashnResult.promptDetails.resolved,
       missing: fashnResult.promptDetails.missing,
     },
+    api: {
+      model: fashnResult.modelName,
+      capabilities: capabilityLog,
+      inputs: fashnResult.inputsSent,
+      output: outputSummary,
+      warnings: debugWarnings,
+      checks: aspectChecks,
+      ui: aspectDebug.ui,
+    },
   }
 
   const missingMappings = fashnResult.promptDetails.missing
 
   if (missingMappings.length > 0) {
-    console.warn("[VERIFY WARNING] Model attributes do not match prompt inputs.", {
+    const mappingWarning = "[VERIFY WARNING] Model attributes do not match prompt inputs."
+    console.warn(mappingWarning, {
       missing: missingMappings,
     })
+    debugWarnings.push(`${mappingWarning} Missing: ${missingMappings.join(", ")}`)
   }
 
   const mappingSummary =
@@ -912,6 +1240,7 @@ export async function POST(request: Request) {
     creditsRemaining: fashnResult.creditsRemaining ?? creditsRemaining,
     totalCredits: planCreditLimit,
     plan,
+    debug: aspectDebug,
     generation: insertedGeneration
       ? {
           id: insertedGeneration.id,

@@ -31,6 +31,228 @@ const PLAN_LIMITS_MAP: Record<PlanTier, number> = {
 
 const DEV_MODE_CLIENT = process.env.NEXT_PUBLIC_DEV_MODE === "true"
 const DEV_MODE_CREDITS = 999
+const MAX_DEBUG_ENTRIES = 8
+
+type AspectCheckStatus = "pass" | "warn" | "info"
+
+type AspectDebugEntry = {
+  id: string
+  timestamp: number
+  model: string | null
+  ui: {
+    requested: string | null
+    normalized: string | null
+    numeric: number | null
+  }
+  capabilities: {
+    aspect_ratio: boolean
+    style: boolean
+    width: boolean
+    height: boolean
+  }
+  inputs: Record<string, unknown>
+  output: {
+    width: number | null
+    height: number | null
+    ratio: number | null
+  }
+  warnings: string[]
+  checks: Array<{ message: string; status: AspectCheckStatus }>
+}
+
+const generateDebugId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `aspect-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+const toRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : {}
+
+const asString = (value: unknown): string | null => (typeof value === "string" ? value : null)
+
+const asNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null
+
+const asBoolean = (value: unknown): boolean => value === true || value === "true" || value === 1
+
+const isCheckStatus = (value: unknown): value is AspectCheckStatus =>
+  value === "pass" || value === "warn" || value === "info"
+
+const parseAspectDebugPayload = (payload: unknown): AspectDebugEntry | null => {
+  if (!payload || typeof payload !== "object") {
+    return null
+  }
+
+  const base = payload as Record<string, unknown>
+  const uiRecord = toRecord(base.ui)
+  const capabilitiesRecord = toRecord(base.capabilities)
+  const inputsRecord = toRecord(base.inputs)
+  const outputRecord = toRecord(base.output)
+  const rawWarnings = Array.isArray(base.warnings) ? base.warnings : []
+  const rawChecks = Array.isArray(base.checks) ? base.checks : []
+
+  const entry: AspectDebugEntry = {
+    id: generateDebugId(),
+    timestamp: Date.now(),
+    model: asString(base.model),
+    ui: {
+      requested: asString(uiRecord.requested),
+      normalized: asString(uiRecord.normalized),
+      numeric: asNumber(uiRecord.numeric),
+    },
+    capabilities: {
+      aspect_ratio: asBoolean(capabilitiesRecord.aspect_ratio),
+      style: asBoolean(capabilitiesRecord.style),
+      width: asBoolean(capabilitiesRecord.width),
+      height: asBoolean(capabilitiesRecord.height),
+    },
+    inputs: inputsRecord,
+    output: {
+      width: asNumber(outputRecord.width),
+      height: asNumber(outputRecord.height),
+      ratio: asNumber(outputRecord.ratio),
+    },
+    warnings: rawWarnings.filter((warning): warning is string => typeof warning === "string"),
+    checks: rawChecks
+      .map((check) => {
+        const record = toRecord(check)
+        const message = asString(record.message)
+        const status = record.status
+        if (!message || !isCheckStatus(status)) {
+          return null
+        }
+        return { message, status }
+      })
+      .filter(
+        (value): value is { message: string; status: AspectCheckStatus } => value !== null,
+      ),
+  }
+
+  return entry
+}
+
+const formatTimestamp = (value: number) =>
+  new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+
+function AspectDebugConsole({ entries }: { entries: AspectDebugEntry[] }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  if (entries.length === 0) {
+    return null
+  }
+
+  const latest = entries[0]
+  const latestRatio =
+    typeof latest.output.ratio === "number" ? latest.output.ratio.toFixed(2) : "—"
+  const latestRequested = latest.ui.requested ?? latest.ui.normalized ?? "n/a"
+
+  const extractInputString = (entry: AspectDebugEntry, key: string): string | null => {
+    const value = entry.inputs[key]
+    return typeof value === "string" ? value : null
+  }
+
+  const extractInputNumber = (entry: AspectDebugEntry, key: string): number | null => {
+    const value = entry.inputs[key]
+    return asNumber(value)
+  }
+
+  const statusColor = (status: AspectCheckStatus) => {
+    switch (status) {
+      case "pass":
+        return "text-emerald-300"
+      case "warn":
+        return "text-amber-300"
+      default:
+        return "text-neutral-300"
+    }
+  }
+
+  return (
+    <div className="pointer-events-auto fixed bottom-4 right-4 z-50 w-[min(92vw,360px)] text-xs font-mono text-neutral-200">
+      <button
+        type="button"
+        onClick={() => setIsOpen((previous) => !previous)}
+        className="flex w-full items-center justify-between rounded-t-xl border border-white/10 bg-black/70 px-3 py-2 text-[11px] uppercase tracking-[0.2em] text-[#9FFF57] shadow-lg backdrop-blur-md transition-colors hover:bg-black/60"
+      >
+        <span>Aspect Debug Console</span>
+        <span className="text-neutral-300">
+          {latestRequested} · r={latestRatio} {isOpen ? "▾" : "▸"}
+        </span>
+      </button>
+      {isOpen ? (
+        <div className="max-h-[360px] overflow-y-auto rounded-b-xl border border-t-0 border-white/10 bg-black/85 px-3 py-4 shadow-2xl backdrop-blur-xl">
+          <div className="space-y-4">
+            {entries.map((entry) => {
+              const aspectInput =
+                extractInputString(entry, "aspect_ratio") ??
+                extractInputString(entry, "aspectRatio")
+              const widthInput =
+                extractInputNumber(entry, "width") ?? extractInputNumber(entry, "image_width")
+              const heightInput =
+                extractInputNumber(entry, "height") ?? extractInputNumber(entry, "image_height")
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-lg border border-white/10 bg-[#0b0b0b]/90 p-3 shadow-[0_0_15px_rgba(0,0,0,0.35)]"
+                >
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
+                    <span>{formatTimestamp(entry.timestamp)}</span>
+                    <span>{entry.model ?? "—"}</span>
+                  </div>
+                  <div className="mt-2 space-y-1 text-[11px] leading-relaxed text-neutral-100">
+                    <p>
+                      <span className="text-neutral-400">UI:</span>{" "}
+                      {entry.ui.requested ?? "n/a"} → {entry.ui.normalized ?? "n/a"} (
+                      {entry.ui.numeric ?? "—"})
+                    </p>
+                    <p>
+                      <span className="text-neutral-400">Inputs:</span>{" "}
+                      ar={aspectInput ?? "n/a"} w={widthInput ?? "—"} h={heightInput ?? "—"}
+                    </p>
+                    <p>
+                      <span className="text-neutral-400">Capabilities:</span>{" "}
+                      AR={entry.capabilities.aspect_ratio ? "Y" : "N"} · ST={" "}
+                      {entry.capabilities.style ? "Y" : "N"} · W=
+                      {entry.capabilities.width ? "Y" : "N"} · H=
+                      {entry.capabilities.height ? "Y" : "N"}
+                    </p>
+                    <p>
+                      <span className="text-neutral-400">Output:</span>{" "}
+                      w={entry.output.width ?? "—"} h={entry.output.height ?? "—"} r=
+                      {entry.output.ratio ?? "—"}
+                    </p>
+                  </div>
+                  {entry.checks.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                      {entry.checks.map((check, index) => (
+                        <p
+                          key={`${entry.id}-check-${index}`}
+                          className={`${statusColor(check.status)} text-[11px]`}
+                        >
+                          {check.message}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {entry.warnings.length > 0 ? (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-[10px] uppercase tracking-wide text-rose-300">Warnings</p>
+                      <ul className="space-y-1 text-[11px] text-rose-300">
+                        {entry.warnings.map((warning, index) => (
+                          <li key={`${entry.id}-warn-${index}`}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 const resolvePlanTier = (
   rawPlan?: string | null,
@@ -51,6 +273,7 @@ function DashboardContent() {
   const [plan, setPlan] = useState<PlanTier>(DEV_MODE_CLIENT ? "pro" : "free")
   const [credits, setCredits] = useState<number>(DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP.free)
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
+  const [aspectDebugEntries, setAspectDebugEntries] = useState<AspectDebugEntry[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
@@ -180,6 +403,41 @@ function DashboardContent() {
   }, [user?.user_metadata?.full_name])
 
   const handleUpgradeClick = useCallback(() => setShowUpgradeModal(true), [])
+
+  const handleDownload = useCallback(
+    async (url: string, isWatermarked: boolean) => {
+      try {
+        const response = await fetch(url, { mode: "cors" })
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+        const blob = await response.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        const suffix = isWatermarked ? "_watermarked" : ""
+        link.href = blobUrl
+        link.download = `modelcast_output${suffix}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(blobUrl)
+        toast({
+          title: "Download started",
+          description: isWatermarked
+            ? "Watermarked preview saved to your device."
+            : "HD image saved to your device.",
+        })
+      } catch (error) {
+        console.error("[dashboard] download failed", error)
+        toast({
+          title: "Download failed",
+          description: "Please try again in a moment.",
+          variant: "destructive",
+        })
+      }
+    },
+    [toast],
+  )
 
   useEffect(() => {
     let isMounted = true
@@ -447,6 +705,13 @@ function DashboardContent() {
           setGeneratedImages((previous) => [fallback, ...previous].slice(0, 20))
         }
 
+        if (DEV_MODE_CLIENT && payload?.debug) {
+          const parsedDebug = parseAspectDebugPayload(payload.debug)
+          if (parsedDebug) {
+            setAspectDebugEntries((previous) => [parsedDebug, ...previous].slice(0, MAX_DEBUG_ENTRIES))
+          }
+        }
+
         toast({
           title: "Render complete",
           description: "1 credit used.",
@@ -537,8 +802,16 @@ function DashboardContent() {
         </section>
 
         <aside className="order-2 w-full space-y-6 border-t border-white/5 pt-6 md:order-2 md:border-t-0 md:border-l md:border-white/10 md:pl-8 md:pt-0 md:flex-[0.4] lg:pl-12">
-          <LatestPreviewCard image={latestImage} isGenerating={isGenerating} />
-          <RecentGenerations images={generatedImages} isGenerating={isGenerating} />
+          <LatestPreviewCard
+            image={latestImage}
+            isGenerating={isGenerating}
+            onDownload={handleDownload}
+          />
+          <RecentGenerations
+            images={generatedImages}
+            isGenerating={isGenerating}
+            onDownload={handleDownload}
+          />
         </aside>
       </main>
 
@@ -603,10 +876,12 @@ function DashboardContent() {
               Notify me
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
+      </DialogContent>
+    </Dialog>
+
+    {DEV_MODE_CLIENT ? <AspectDebugConsole entries={aspectDebugEntries} /> : null}
+  </div>
+)
 }
 
 export default function DashboardPage() {

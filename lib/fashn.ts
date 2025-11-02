@@ -6,6 +6,9 @@ import {
 
 export type { PromptOptions } from '@/lib/promptUtils'
 
+const FASHN_API_BASE =
+  process.env.FASHN_API_BASE?.replace(/\/+$/, '') ?? 'https://api.fashn.ai/v1'
+
 export const buildPrompt = (
   options: PromptOptions,
   formSelections?: PromptFormSelections,
@@ -46,9 +49,35 @@ export type BuildFashnInputOptions = {
 }
 
 const INPUT_WHITELIST: Record<string, readonly string[]> = {
-  'product-to-model': ['product_image', 'output_format', 'prompt'],
-  'tryon-v1.6': ['model_image', 'garment_image', 'output_format', 'prompt'],
-  'tryon-v1.5': ['model_image', 'garment_image', 'output_format', 'prompt'],
+  'product-to-model': [
+    'product_image',
+    'output_format',
+    'prompt',
+    'aspect_ratio',
+    'style',
+    'width',
+    'height',
+  ],
+  'tryon-v1.6': [
+    'model_image',
+    'garment_image',
+    'output_format',
+    'prompt',
+    'aspect_ratio',
+    'style',
+    'width',
+    'height',
+  ],
+  'tryon-v1.5': [
+    'model_image',
+    'garment_image',
+    'output_format',
+    'prompt',
+    'aspect_ratio',
+    'style',
+    'width',
+    'height',
+  ],
 }
 
 export const buildFashnInputs = (
@@ -104,4 +133,31 @@ export const enforceInputWhitelist = (
   const sanitized = Object.entries(inputs).filter(([key]) => allowed.has(key))
 
   return Object.fromEntries(sanitized)
+}
+
+export const getFashnCapabilities = async (model: string) => {
+  const url = `${FASHN_API_BASE}/models/${model}`
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${process.env.FASHN_API_KEY}` },
+    })
+
+    if (!res.ok) {
+      console.warn(
+        `[WARN] Failed to fetch Fashn capabilities for ${model}: ${res.status}`,
+      )
+      return {}
+    }
+
+    const data = await res.json()
+    const inputs = data?.inputs ?? data ?? {}
+    console.log('[DEBUG] Fashn model capabilities:', inputs)
+    return inputs as Record<string, unknown>
+  } catch (error) {
+    console.warn(
+      `[WARN] Error during Fashn capability probe for ${model}`,
+      error,
+    )
+    return {}
+  }
 }
