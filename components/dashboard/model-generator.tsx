@@ -18,6 +18,13 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { toast } from '@/hooks/use-toast'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   deleteFromCloudinary,
   uploadToCloudinary,
   type CloudinaryUploadResult,
@@ -111,9 +118,12 @@ export function ModelGenerator({
   })
   const [isGenerating, setIsGenerating] = useState(false)
   const [advancedMode, setAdvancedMode] = useState(false)
+  const [poseGuidanceVisible, setPoseGuidanceVisible] = useState(false)
+  const [poseExamplesOpen, setPoseExamplesOpen] = useState(false)
 
   const modelSlotEnabled = isPro && advancedMode
-  const showModelAppearanceControls = !modelSlotEnabled
+  const tryOnModeActive = modelSlotEnabled
+  const showModelAppearanceControls = !tryOnModeActive
 
   const garmentFileInputRef = useRef<HTMLInputElement>(null)
   const modelFileInputRef = useRef<HTMLInputElement>(null)
@@ -281,6 +291,7 @@ export function ModelGenerator({
 
     if (!value) {
       void handleRemoveImage('model')
+      setPoseGuidanceVisible(false)
     }
 
     setAdvancedMode(value)
@@ -289,8 +300,22 @@ export function ModelGenerator({
   useEffect(() => {
     if (modelSlotEnabled) {
       console.log('[DEBUG] Aspect ratio disabled (try-on mode)')
+    } else {
+      setPoseGuidanceVisible(false)
+      setPoseExamplesOpen(false)
     }
   }, [modelSlotEnabled])
+
+  const previousTryOnRef = useRef(tryOnModeActive)
+
+  useEffect(() => {
+    if (previousTryOnRef.current !== tryOnModeActive) {
+      if (tryOnModeActive) {
+        console.log('[DEBUG] Try-On mode detected → style/background controls disabled.')
+      }
+      previousTryOnRef.current = tryOnModeActive
+    }
+  }, [tryOnModeActive])
 
   const isUploading = uploadingState.garment || uploadingState.model
   const upgradeTooltip = !hasCredits && plan === 'free'
@@ -340,12 +365,26 @@ export function ModelGenerator({
     setIsGenerating(true)
 
     try {
-      await onGenerate({
+      const result = await onGenerate({
         ...formValues,
         garmentImageUrl: garmentAsset.secureUrl,
         modelImageUrl: advancedMode && modelAsset?.secureUrl ? modelAsset.secureUrl : null,
         mode: advancedMode ? 'advanced' : 'basic',
       })
+      if (result === 'POSE_DETECTION_FAILED') {
+        setPoseGuidanceVisible(true)
+        toast({
+          title: 'Body not detected in photo',
+          description:
+            'Recommended: full-body photo, standing pose, simple background. We opened a quick guide with examples.',
+          duration: 15000,
+        })
+        setPoseExamplesOpen(true)
+        return
+      }
+      if (typeof result === 'string') {
+        setPoseGuidanceVisible(false)
+      }
     } catch (error) {
       console.error('Model generation failed', error)
     } finally {
@@ -391,9 +430,28 @@ export function ModelGenerator({
             title
           )}
         </Label>
-        <p className={`text-xs ${isLocked ? 'text-neutral-600' : 'text-neutral-500'}`}>
-          {isLocked ? 'Upgrade to Pro to try clothes on real models.' : subtitle}
-        </p>
+        <div className="space-y-1">
+          <p className={`text-xs ${isLocked ? 'text-neutral-600' : 'text-neutral-500'}`}>
+            {isLocked ? 'Upgrade to Pro to try clothes on real models.' : subtitle}
+          </p>
+          {slot === 'model' ? (
+            modelSlotEnabled ? (
+              <>
+                <p className="text-xs text-neutral-500">
+                  Recommended: full-body photo, standing pose, simple background.
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-transparent select-none" aria-hidden>
+                Placeholder to preserve layout
+              </p>
+            )
+          ) : (
+            <p className="text-xs text-transparent select-none" aria-hidden>
+              Placeholder to preserve layout
+            </p>
+          )}
+        </div>
         <div
           onDrop={(event) => handleDrop(slot, event)}
           onDragOver={(event) => event.preventDefault()}
@@ -551,31 +609,37 @@ export function ModelGenerator({
 
         <div className="space-y-2.5">
           <Label className="text-sm font-medium text-neutral-400">Style Type</Label>
-          <RadioGroup
-            value={formValues.styleType}
-            onValueChange={(value) =>
-              setFormValues((current) => ({ ...current, styleType: value }))
-            }
-            className="grid gap-3 sm:grid-cols-2"
-          >
-            {styleTypes.map((style) => (
-              <Label
-                key={style.id}
-                htmlFor={style.id}
-                className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-2 text-sm text-neutral-200 transition ${
-                  formValues.styleType === style.id
-                    ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
-                    : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
-                }`}
-              >
-                <RadioGroupItem value={style.id} id={style.id} className="sr-only" />
-                <span className="text-xl" aria-hidden>
-                  {style.icon}
-                </span>
-                {style.label}
-              </Label>
-            ))}
-          </RadioGroup>
+          {tryOnModeActive ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-neutral-400">
+              Style and background options are disabled when using your own photo. The final image keeps your original background.
+            </div>
+          ) : (
+            <RadioGroup
+              value={formValues.styleType}
+              onValueChange={(value) =>
+                setFormValues((current) => ({ ...current, styleType: value }))
+              }
+              className="grid gap-3 sm:grid-cols-2"
+            >
+              {styleTypes.map((style) => (
+                <Label
+                  key={style.id}
+                  htmlFor={style.id}
+                  className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border p-2 text-sm text-neutral-200 transition ${
+                    formValues.styleType === style.id
+                      ? 'border-transparent bg-white/[0.06] text-neutral-50 shadow-[0_0_18px_rgba(159,255,87,0.12)] ring-2 ring-[#9FFF57] ring-offset-2 ring-offset-[#0b0b0b]'
+                      : 'border-white/12 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05] hover:text-neutral-50'
+                  }`}
+                >
+                  <RadioGroupItem value={style.id} id={style.id} className="sr-only" />
+                  <span className="text-xl" aria-hidden>
+                    {style.icon}
+                  </span>
+                  {style.label}
+                </Label>
+              ))}
+            </RadioGroup>
+          )}
         </div>
 
         {showModelAppearanceControls ? (
@@ -743,6 +807,26 @@ export function ModelGenerator({
           ) : null}
         </div>
       </div>
+      <Dialog open={poseExamplesOpen} onOpenChange={setPoseExamplesOpen}>
+        <DialogContent className="max-w-md border-white/10 bg-[#101010]/95 text-neutral-100">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-white">Full-body photo tips</DialogTitle>
+            <DialogDescription className="text-sm text-neutral-400">
+              Use these guidelines to help the AI detect body pose correctly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-neutral-200">
+            <ul className="space-y-2 list-disc pl-4 text-neutral-300">
+              <li>Frame the person from head to toe with arms and legs fully visible.</li>
+              <li>Ask them to stand upright, facing slightly toward the camera.</li>
+              <li>Use even lighting and a simple, uncluttered background.</li>
+            </ul>
+            <p className="text-xs text-neutral-500">
+              Avoid close-up portraits, seated poses, or busy backdrops—the AI needs the full silhouette to fit outfits accurately.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

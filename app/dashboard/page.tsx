@@ -384,6 +384,14 @@ function DashboardContent() {
           return null
         }
 
+        if (response.status === 400 && payload?.code === "POSE_DETECTION_FAILED") {
+          toast({
+            title: "Body not detected in photo",
+            description: "Try a full-body image with the person standing upright against a simple background.",
+          })
+          return "POSE_DETECTION_FAILED"
+        }
+
         if (response.status >= 500) {
           const errorMessage =
             (payload && typeof payload.error === "string" && payload.error) || "Generation failed. Please try again."

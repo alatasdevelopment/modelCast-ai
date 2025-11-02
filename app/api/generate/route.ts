@@ -1027,9 +1027,23 @@ export async function POST(request: Request) {
   try {
     fashnResult = await callFashnApi(parsedPayload)
   } catch (error) {
+    const message = error instanceof Error ? error.message ?? String(error) : String(error)
+    if (typeof message === "string" && message.includes("Failed to detect body pose")) {
+      console.warn(
+        `[WARN] Pose detection failed — likely missing full body in model image. User ${user.id} upload may be cropped or incomplete.`,
+      )
+      return NextResponse.json(
+        {
+          error: "Pose detection failed",
+          hint: "Please upload a clear full-body photo of the person standing upright against a simple background.",
+          code: "POSE_DETECTION_FAILED",
+        },
+        { status: 400 },
+      )
+    }
+
     console.error("[generate] FASHN request failed", error)
-    const message = error instanceof Error ? error.message : "FASHN_API_ERROR"
-    return NextResponse.json({ success: false, error: message }, { status: 502 })
+    return NextResponse.json({ success: false, error: message || "FASHN_API_ERROR" }, { status: 502 })
   }
 
   const requestedAspectSummary = normalizeAspectRatioValue(parsedPayload.formSettings?.aspectRatio)
