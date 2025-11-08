@@ -8,7 +8,6 @@ import Hero from "@/components/home/hero"
 import ModelStyles from "@/components/model-styles"
 import Features from "@/components/features"
 import { EarlyAccessSection } from "@/components/early-access"
-import { TrustSection } from "@/components/trust-section"
 import { FAQSection } from "@/components/faq-section"
 import { PricingSection } from "@/components/pricing-section"
 import { StickyFooter } from "@/components/sticky-footer"
@@ -346,8 +345,6 @@ export default function Home() {
       <div id="early-access">
         <EarlyAccessSection />
       </div>
-
-      <TrustSection />
 
       {/* FAQ Section */}
       <div id="faq">

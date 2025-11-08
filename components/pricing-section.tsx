@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Check, Loader2, Sparkles } from "lucide-react"
+import { Check, Loader2 } from "lucide-react"
 
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
 import { Badge } from "@/components/ui/badge"
@@ -20,8 +20,8 @@ type PricingPlan = {
   name: string
   price: number
   oldPrice: number | null
+  period?: string
   subtitle: string
-  discountNote?: string | null
   features: string[]
   cta: string
   highlight?: boolean
@@ -35,9 +35,9 @@ const pricingPlans: PricingPlan[] = [
     name: 'Free Trial',
     price: 0,
     oldPrice: null,
-    subtitle: 'Kick off with 2 free credits and watermarked previews.',
-    discountNote: null,
-    features: ['2 free credits', 'Watermarked outputs', 'Single upload only', 'Standard resolution'],
+    period: undefined,
+    subtitle: 'Get started with 2 free credits — explore ModelCast with no commitment.',
+    features: ['2 free credits', 'Standard HD outputs', 'Access to all style options', 'Try-on demo included'],
     cta: 'Start Free',
     credits: 2,
   },
@@ -46,14 +46,14 @@ const pricingPlans: PricingPlan[] = [
     name: 'Pro Pack',
     price: 14,
     oldPrice: 19,
-    subtitle: 'Perfect for creators and boutique brands.',
-    discountNote: 'Early launch discount — 25% off for first adopters.',
+    period: '/month',
+    subtitle: 'Perfect for creators and small brands looking for consistent high-quality results.',
     features: [
       '30 credits / month',
-      'HD resolution with no watermark',
-      'Dual upload (tryon-v1.6)',
+      'Full HD resolution',
+      'Dual upload (try-on)',
       'Commercial license',
-      'Priority queue',
+      'Priority generation',
     ],
     cta: 'Get Pro Pack',
     highlight: true,
@@ -65,8 +65,8 @@ const pricingPlans: PricingPlan[] = [
     name: 'Studio Pack',
     price: 49,
     oldPrice: 69,
-    subtitle: 'For studios and e-commerce teams.',
-    discountNote: 'Early launch pricing — save $20 monthly.',
+    period: '/month',
+    subtitle: 'For studios and e-commerce teams producing large volumes of content.',
     features: [
       '150 credits / month',
       'Batch generation & API access',
@@ -77,6 +77,28 @@ const pricingPlans: PricingPlan[] = [
     credits: 150,
   },
 ]
+
+const planButtonStyles: Record<
+  PlanTier,
+  {
+    variant: "outline" | "ghost" | "lime"
+    className: string
+  }
+> = {
+  free: {
+    variant: "outline",
+    className: "border-lime-400/50 text-lime-400 hover:bg-lime-400/10",
+  },
+  pro: {
+    variant: "lime",
+    className:
+      "shadow-[0_0_15px_rgba(163,255,88,0.25)] hover:shadow-[0_0_25px_rgba(163,255,88,0.35)] transition",
+  },
+  studio: {
+    variant: "ghost",
+    className: "border border-neutral-700 bg-black/40 text-white hover:border-lime-400/30 hover:text-lime-200",
+  },
+}
 
 export function PricingSection() {
   const router = useRouter()
@@ -153,44 +175,21 @@ export function PricingSection() {
   }, [isLoading, router, user])
 
   return (
-    <section id="pricing" className="relative py-24 px-4">
-      <div className="mx-auto max-w-7xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mb-16 text-center"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm"
-          >
-            <Sparkles className="h-4 w-4 text-[#9FFF57]" />
-            <span className="text-sm font-medium text-white/80">Pricing</span>
-          </motion.div>
+    <section id="pricing" className="relative py-24 bg-black text-center">
+      <div className="mx-auto max-w-5xl px-4">
+        <p className="text-xs uppercase tracking-widest text-lime-400/70 mb-3">Simple, flexible pricing</p>
+        <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">Credits that scale with you</h2>
+        <p className="text-gray-400 max-w-2xl mx-auto mb-12">
+          Choose a plan that fits your workflow. Your credits unlock every generation — pay only for what you use.
+        </p>
+      </div>
 
-          <h2 className="mb-4 text-4xl font-bold text-transparent md:text-5xl">
-            <span className="bg-gradient-to-r from-white via-white to-white/60 bg-clip-text">
-              Credits that scale with you
-            </span>
-          </h2>
-
-          <p className="mx-auto mb-2 max-w-2xl text-lg text-white/60">
-            Choose a plan that fits your workflow. Your credits unlock every generation across ModelCast.
-          </p>
-          <p className="text-sm font-medium text-[#9FFF57]">
-            Early access pricing — discounted for our first 1,000 users.
-          </p>
-        </motion.div>
-
-        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3 text-left">
           {pricingPlans.map((plan, index) => {
-            const formattedPrice = plan.price === 0 ? '$0' : `$${plan.price}`
+            const formattedPrice = plan.price === 0 ? "$0" : `$${plan.price}`
             const isLoadingPlan = loadingPlan === plan.id
+            const buttonStyle = planButtonStyles[plan.id]
 
             return (
               <motion.div
@@ -198,42 +197,36 @@ export function PricingSection() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+                transition={{ duration: 0.6, delay: index * 0.2 }}
               >
                 <Card
                   className={cn(
-                    'relative flex h-full flex-col justify-between rounded-2xl border border-white/10 bg-[#0b0b0b]/85 p-6 transition-all duration-300 hover:translate-y-[-4px] hover:border-white/20 hover:shadow-[0_0_20px_rgba(159,255,87,0.18)]',
-                    plan.highlight &&
-                      'border-[#9FFF57]/70 shadow-[0_0_22px_-6px_rgba(159,255,87,0.28)] hover:border-[#9FFF57] hover:shadow-[0_0_26px_-4px_rgba(159,255,87,0.4)]',
+                    "relative flex h-full flex-col justify-between rounded-2xl border border-neutral-800 bg-neutral-900/50 p-6 text-left transition duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:border-lime-400/20 hover:bg-neutral-900/70",
+                    plan.highlight && "border-lime-400/40 ring-1 ring-lime-400/20 bg-neutral-900/60",
+                    "gap-0",
                   )}
                 >
                   {plan.highlight && plan.badge ? (
-                    <Badge className="pointer-events-none select-none absolute -top-3 left-1/2 -translate-x-1/2 border border-[#9FFF57]/40 bg-[#121212]/80 text-[#9FFF57] shadow-[0_0_20px_rgba(159,255,87,0.2)]">
+                    <Badge className="pointer-events-none mb-4 inline-flex items-center justify-center rounded-full border border-lime-400/30 bg-black/60 px-3 py-1 text-xs font-semibold text-lime-300 shadow-[0_0_18px_rgba(163,255,88,0.15)] mx-auto md:mx-0">
                       {plan.badge}
                     </Badge>
                   ) : null}
 
                   <div>
-                    <h3 className="mb-2 text-xl font-semibold tracking-tight text-white">{plan.name}</h3>
-                    <div className="flex items-baseline space-x-2">
+                    <h3 className="mb-1 text-xl font-semibold tracking-tight text-white">{plan.name}</h3>
+                    <div className="flex items-baseline gap-3">
                       {plan.oldPrice ? (
-                        <>
-                          <span className="text-sm text-neutral-500 line-through">${plan.oldPrice}</span>
-                          <span className="text-3xl font-bold text-[#9FFF57]">{formattedPrice}</span>
-                          <span className="text-sm text-muted-foreground">/month</span>
-                        </>
-                      ) : (
-                        <span className="text-3xl font-bold text-white">{formattedPrice}</span>
-                      )}
+                        <span className="text-lg text-gray-600 line-through">${plan.oldPrice}</span>
+                      ) : null}
+                      <span className="text-4xl font-bold text-lime-400">{formattedPrice}</span>
+                      {plan.period ? <span className="text-sm text-neutral-500">{plan.period}</span> : null}
                     </div>
                     <p className="mt-2 text-sm text-neutral-400">{plan.subtitle}</p>
-                    <p className="mt-1 text-xs italic text-neutral-500">
-                      {plan.discountNote ?? "Early access pricing — discounted for our first 1,000 users."}
-                    </p>
-                    <ul className="mt-5 space-y-3 text-sm font-medium text-neutral-200">
+                    <p className="mt-1 text-xs text-gray-500">Early access discount</p>
+                    <ul className="mt-5 space-y-3 text-sm text-gray-300">
                       {plan.features.map((feature) => (
                         <li key={feature} className="flex items-center gap-2">
-                          <Check className="h-4 w-4 flex-shrink-0 text-[#9FFF57]" />
+                          <Check className="h-4 w-4 flex-shrink-0 text-lime-300" />
                           <span>{feature}</span>
                         </li>
                       ))}
@@ -241,11 +234,10 @@ export function PricingSection() {
                   </div>
 
                   <Button
+                    variant={buttonStyle.variant}
                     className={cn(
-                      'relative mt-6 w-full overflow-hidden rounded-xl border border-white/10 py-3 text-base font-semibold transition-all duration-200 after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:scale-x-0 after:bg-[#9FFF57] after:transition-transform after:duration-200 hover:after:scale-x-100',
-                      plan.highlight
-                        ? 'border-transparent bg-gradient-to-r from-[#9FFF57] to-[#CFFF8A] text-black shadow-[0_10px_24px_rgba(159,255,87,0.25)] hover:from-[#B4FF6E] hover:to-[#DFFF9F]'
-                        : 'bg-neutral-900 text-neutral-100 hover:bg-neutral-800',
+                      "mt-8 w-full rounded-xl py-3 text-base font-semibold transition-all duration-200",
+                      buttonStyle.className,
                     )}
                     disabled={isLoading || isLoadingPlan}
                     onClick={() => handlePlanSelect(plan)}
@@ -265,12 +257,12 @@ export function PricingSection() {
           })}
         </div>
 
-        <div className="mt-12 flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-6 py-5 text-center text-sm text-white/70 md:flex-row md:justify-center md:text-left">
-          <span className="font-semibold text-white/85">Need more credits mid-cycle?</span>
-          <span>Add-on credit packs are available from your dashboard at any time.</span>
+        <div className="mt-12 flex flex-col items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/40 px-6 py-5 text-center text-sm text-white/70 md:flex-row md:justify-center md:text-left">
+          <span className="font-semibold text-white">Need more credits mid-cycle?</span>
+          <span className="text-gray-400">Add-on credit packs are available from your dashboard at any time.</span>
           <Button
             variant="outline"
-            className="border-white/20 bg-black/40 text-xs font-semibold text-white/80 hover:border-[#9FFF57] hover:text-[#9FFF57]"
+            className="border-lime-400/30 bg-black/40 text-xs font-semibold text-white hover:text-lime-300 hover:bg-black/60"
             onClick={handleAddOnCredits}
             disabled={isLoading}
           >
