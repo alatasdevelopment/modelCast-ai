@@ -240,10 +240,14 @@ export function ModelGenerator({
       tokenRef.current = result.deleteToken ?? null
       scheduleAutoDeletion(slot, result.deleteToken)
     } catch (error) {
-      console.error('Cloudinary upload failed', error)
+      const userMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Could not upload your image. Please try again.'
+      console.warn('[cloudinary] upload failed', error)
       toast({
         title: 'Upload failed',
-        description: 'Could not upload your image. Please try again.',
+        description: userMessage,
         variant: 'destructive',
       })
       setAssetForSlot(slot, null)

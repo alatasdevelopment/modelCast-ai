@@ -4,8 +4,27 @@ export interface CloudinaryUploadResult {
   publicId: string
 }
 
+export class CloudinaryUploadError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CloudinaryUploadError'
+  }
+}
+
 const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
 const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+
+const parseCloudinaryErrorMessage = (rawBody: string | null, fallback: string) => {
+  if (!rawBody) return fallback
+  try {
+    const parsed = JSON.parse(rawBody)
+    if (typeof parsed?.error?.message === 'string') return parsed.error.message
+    if (typeof parsed?.message === 'string') return parsed.message
+  } catch {
+    // Not JSON — fall through to raw text
+  }
+  return rawBody
+}
 
 export async function uploadToCloudinary(file: File): Promise<CloudinaryUploadResult> {
   if (!cloudName || !uploadPreset) {
@@ -24,7 +43,7 @@ export async function uploadToCloudinary(file: File): Promise<CloudinaryUploadRe
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(errorText || 'Cloudinary upload failed.')
+    throw new CloudinaryUploadError(parseCloudinaryErrorMessage(errorText, 'Cloudinary upload failed.'))
   }
 
   const data = await response.json()
@@ -56,7 +75,7 @@ export async function deleteFromCloudinary(deleteToken: string): Promise<void> {
       console.warn('[cloudinary] Ignoring stale delete token response.')
       return
     }
-    throw new Error(errorText || 'Cloudinary deletion failed.')
+    throw new CloudinaryUploadError(parseCloudinaryErrorMessage(errorText, 'Cloudinary deletion failed.'))
   }
 }
 
