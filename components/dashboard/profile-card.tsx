@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { AlertTriangle, CreditCard, Loader2, Settings, User } from 'lucide-react'
+import { useMemo, useState, useEffect } from 'react'
+import { AlertTriangle, CreditCard, Loader2, Settings, User, Lock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +61,11 @@ export function ProfileCard({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   const router = useRouter()
   const supabaseClient = useMemo(() => getSupabaseClient(), [])
 
@@ -139,6 +145,34 @@ export function ProfileCard({
     return success
   }
 
+  const handlePasswordChange = async () => {
+    if (newPassword.length < 6 || isUpdatingPassword) return
+    setIsUpdatingPassword(true)
+    setPasswordError(null)
+    setPasswordSuccess(false)
+    try {
+      const { error } = await supabaseClient.auth.updateUser({ password: newPassword })
+      if (error) {
+        setPasswordError(error.message || 'Unable to update password.')
+        return
+      }
+      setPasswordSuccess(true)
+      setShowPasswordForm(false)
+      setNewPassword('')
+    } catch (error) {
+      setPasswordError('Unexpected error. Please try again.')
+    } finally {
+      setIsUpdatingPassword(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!showPasswordForm) {
+      setNewPassword('')
+      setPasswordError(null)
+    }
+  }, [showPasswordForm])
+
   return (
     <>
       <Card className="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg sm:p-6">
@@ -203,6 +237,49 @@ export function ProfileCard({
             <Settings className="h-4 w-4" />
             Manage account
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-start gap-2 rounded-xl border border-neutral-800 py-3 text-sm font-medium text-gray-300 transition hover:border-neutral-600 hover:text-white"
+            onClick={() => {
+              setShowPasswordForm((prev) => !prev)
+              setPasswordSuccess(false)
+            }}
+          >
+            <Lock className="h-4 w-4" />
+            Change password
+          </Button>
+          {showPasswordForm ? (
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-3 space-y-2">
+              <Input
+                type="password"
+                placeholder="New password"
+                value={newPassword}
+                onChange={(event) => {
+                  setNewPassword(event.target.value)
+                  setPasswordSuccess(false)
+                }}
+                className="border-neutral-800 bg-neutral-950/60 text-sm text-gray-200 placeholder:text-neutral-500 focus-visible:ring-neutral-600"
+              />
+              <Button
+                type="button"
+                className="w-full rounded-lg bg-white/10 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
+                onClick={handlePasswordChange}
+                disabled={newPassword.length < 6 || isUpdatingPassword}
+              >
+                {isUpdatingPassword ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating…
+                  </>
+                ) : (
+                  'Save password'
+                )}
+              </Button>
+              {passwordError ? <p className="text-sm text-red-400">{passwordError}</p> : null}
+            </div>
+          ) : null}
+          {passwordSuccess ? <p className="text-sm text-lime-400">Password updated successfully.</p> : null}
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-2.5 text-center md:grid-cols-3">
@@ -334,8 +411,7 @@ export function ProfileCard({
             <AlertDialogAction asChild>
               <Button
                 type="button"
-                variant="destructive"
-                className="gap-2"
+                className="gap-2 rounded-lg bg-lime-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-lime-300"
                 disabled={isSigningOut}
                 onClick={async () => {
                   const success = await handleSignOut()
@@ -345,7 +421,7 @@ export function ProfileCard({
                 }}
               >
                 {isSigningOut ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-black" />
                 ) : null}
                 {isSigningOut ? 'Signing out…' : 'Yes, sign me out'}
               </Button>
