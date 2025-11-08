@@ -5,14 +5,19 @@ import { useEffect, useState } from "react"
 
 import { Logo } from "@/components/logo"
 
-const footerLinks = [
-  "Home",
-  "Features",
-  "Pricing",
-  "FAQ",
-  "Support",
-  "Twitter",
-  "Instagram",
+type FooterLink = {
+  label: string
+  targetId?: string
+  href?: string
+}
+
+const footerLinks: FooterLink[] = [
+  { label: "Home", targetId: "home" },
+  { label: "Features", targetId: "features" },
+  { label: "Pricing", targetId: "pricing" },
+  { label: "Early Access", targetId: "early-access" },
+  { label: "FAQ", targetId: "faq" },
+  { label: "Support", href: "mailto:modelcast.fit@proton.me" },
 ]
 
 export function StickyFooter() {
@@ -40,6 +45,27 @@ export function StickyFooter() {
     handleScroll()
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
+
+  const scrollToSection = (targetId?: string) => {
+    if (!targetId) return
+
+    if (targetId === "home") {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+      return
+    }
+
+    const element = document.getElementById(targetId)
+    if (!element) return
+
+    const headerOffset = 120
+    const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
+    const offsetPosition = elementPosition - headerOffset
+
+    window.scrollTo({ top: offsetPosition, behavior: "smooth" })
+  }
+
+  const linkClassName =
+    "cursor-pointer font-medium tracking-[0.02em] text-zinc-300 transition-all duration-200 hover:text-lime-300 hover:drop-shadow-[0_0_18px_rgba(163,255,88,0.35)]"
 
   return (
     <AnimatePresence>
@@ -77,14 +103,17 @@ export function StickyFooter() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
             >
-              {footerLinks.map((item) => (
-                <a
-                  key={item}
-                  className="cursor-pointer font-medium tracking-[0.02em] text-zinc-300 transition-all duration-200 hover:text-[#00FF87]/90 hover:drop-shadow-[0_0_12px_rgba(0,255,135,0.32)]"
-                >
-                  {item}
-                </a>
-              ))}
+              {footerLinks.map(({ label, href, targetId }) =>
+                href ? (
+                  <a key={label} href={href} className={linkClassName}>
+                    {label}
+                  </a>
+                ) : (
+                  <button key={label} type="button" onClick={() => scrollToSection(targetId)} className={linkClassName}>
+                    {label}
+                  </button>
+                ),
+              )}
             </motion.nav>
           </div>
         </motion.footer>

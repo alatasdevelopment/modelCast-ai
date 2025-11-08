@@ -326,7 +326,9 @@ export default function Home() {
       )}
 
       {/* Hero Section */}
-      <Hero />
+      <section id="home">
+        <Hero />
+      </section>
 
       {/* Model Styles Section */}
       <ModelStyles />
