@@ -15,24 +15,27 @@ export function FAQSection() {
     {
       question: "How does the AI try-on work?",
       answer:
-        "Upload your product photo, pick a model and style, and our AI instantly generates a realistic image of your item on a professional model — no photoshoot needed.",
+        "Upload your product photo, choose a model and style, and ModelCast generates a professional-quality image of your item on a model — no photoshoot required. Our AI is powered by FASHN models optimized for fashion and e-commerce use.",
     },
     {
       question: "How long does it take to generate an image?",
-      answer: "Typically 20–30 seconds. It's one of the fastest AI try-on systems available.",
+      answer:
+        "Typically around 20–30 seconds. ModelCast uses Vercel Edge hosting and FASHN AI's latest generation model for fast, high-quality outputs.",
     },
     {
       question: "What happens to my uploaded images?",
-      answer: "Your images are processed securely and automatically deleted after 30 minutes — privacy first, always.",
+      answer:
+        "Your uploads are processed securely through Cloudinary and automatically deleted after 30 minutes. We never store, train on, or share your data — privacy first, always.",
     },
     {
       question: "Can I use the results on my online store or social media?",
-      answer: "Yes! You can download HD versions optimized for Shopify, Instagram, or website banners.",
+      answer:
+        "Yes — all generated images are ready for Shopify, Instagram, or your e-commerce site. Pro and Studio plans include commercial license usage, so you can use outputs for marketing or product pages.",
     },
     {
       question: "How much does it cost?",
       answer:
-        "Your first try is free (with a watermark). After that, it's $2 per HD image or $10 for 6 credits — no subscriptions required.",
+        "You can start free with 2 credits to test ModelCast. Upgrade anytime: Pro Pack — $14/month for 30 credits and HD outputs. Studio Pack — $49/month for 150 credits and API access. No hidden fees or contracts — cancel anytime.",
     },
   ]
 
