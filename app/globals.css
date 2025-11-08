@@ -241,6 +241,31 @@ body {
   }
 }
 
+@keyframes pulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(163, 255, 88, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 38px rgba(163, 255, 88, 0.55);
+  }
+}
+
+.btn-lime {
+  animation: pulseGlow 6s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 9s linear infinite;
+}
+
+@media (max-width: 640px) {
+  .hero-ambient-blur {
+    opacity: 0.05 !important;
+    filter: blur(140px);
+  }
+}
+
 /* Added pulse glow animation for CTA button */
 @keyframes pulse-glow {
   0%,

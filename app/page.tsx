@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Logo } from "@/components/logo"
 import Hero from "@/components/home/hero"
+import ModelStyles from "@/components/model-styles"
 import Features from "@/components/features"
 import { EarlyAccessSection } from "@/components/early-access"
 import { TrustSection } from "@/components/trust-section"
@@ -103,7 +104,7 @@ export default function Home() {
 
         <div className="absolute inset-0 hidden flex-1 items-center justify-center space-x-2 text-[1.02rem] font-medium text-zinc-300 tracking-[0.025em] transition-colors duration-200 hover:text-zinc-100 md:flex pointer-events-none">
           <a
-            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[#00FF87]/90 cursor-pointer pointer-events-auto"
+            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[var(--brand-green)] cursor-pointer pointer-events-auto"
             onClick={(e) => {
               e.preventDefault()
               const element = document.getElementById("features")
@@ -122,7 +123,7 @@ export default function Home() {
             <span className="relative z-20">Features</span>
           </a>
           <a
-            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[#00FF87]/90 cursor-pointer pointer-events-auto"
+            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[var(--brand-green)] cursor-pointer pointer-events-auto"
             onClick={(e) => {
               e.preventDefault()
               const element = document.getElementById("pricing")
@@ -141,7 +142,7 @@ export default function Home() {
             <span className="relative z-20">Pricing</span>
           </a>
           <a
-            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[#00FF87]/90 cursor-pointer pointer-events-auto"
+            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[var(--brand-green)] cursor-pointer pointer-events-auto"
             onClick={(e) => {
               e.preventDefault()
               const element = document.getElementById("early-access")
@@ -160,7 +161,7 @@ export default function Home() {
             <span className="relative z-20">Early Access</span>
           </a>
           <a
-            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[#00FF87]/90 cursor-pointer pointer-events-auto"
+            className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[var(--brand-green)] cursor-pointer pointer-events-auto"
             onClick={(e) => {
               e.preventDefault()
               const element = document.getElementById("faq")
@@ -258,25 +259,25 @@ export default function Home() {
             <nav className="flex flex-col space-y-4">
               <button
                 onClick={() => handleMobileNavClick("features")}
-                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[#00FF87]/90 hover:bg-white/[0.05]"
+                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[var(--brand-green)] hover:bg-white/[0.05]"
               >
                 Features
               </button>
               <button
                 onClick={() => handleMobileNavClick("pricing")}
-                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[#00FF87]/90 hover:bg-white/[0.05]"
+                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[var(--brand-green)] hover:bg-white/[0.05]"
               >
                 Pricing
               </button>
               <button
                 onClick={() => handleMobileNavClick("early-access")}
-                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[#00FF87]/90 hover:bg-white/[0.05]"
+                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[var(--brand-green)] hover:bg-white/[0.05]"
               >
                 Early Access
               </button>
               <button
                 onClick={() => handleMobileNavClick("faq")}
-                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[#00FF87]/90 hover:bg-white/[0.05]"
+                className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[var(--brand-green)] hover:bg-white/[0.05]"
               >
                 FAQ
               </button>
@@ -327,6 +328,9 @@ export default function Home() {
 
       {/* Hero Section */}
       <Hero />
+
+      {/* Model Styles Section */}
+      <ModelStyles />
 
       {/* Features Section */}
       <div id="features">
