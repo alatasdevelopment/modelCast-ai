@@ -66,6 +66,8 @@ export function ProfileCard({
   const displayName = userName || email || 'ModelCast User'
   const displayEmail = email || 'email@modelcast.ai'
   const creditSummary = devMode ? '∞ (Dev Mode)' : `${credits} / ${maxCredits}`
+  const creditsDisplayValue = devMode ? '∞' : `${credits} / ${maxCredits}`
+  const creditsDisplaySuffix = devMode ? '(Dev Mode)' : null
   const statusLabel = devMode ? 'Dev sandbox' : credits > 0 ? 'Active' : 'Recharge needed'
   const tooltipMessage = devMode
     ? 'Dev Mode: credits are unlimited for local testing.'
@@ -139,35 +141,35 @@ export function ProfileCard({
 
   return (
     <>
-      <Card className="relative gap-6 overflow-hidden rounded-2xl border-white/12 bg-[#111111]/60 p-6 shadow-[0_0_30px_rgba(0,0,0,0.4)] backdrop-blur-2xl sm:p-7">
-        <span className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(159,255,87,0.55)] to-transparent" aria-hidden />
-
+      <Card className="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-green-muted)]">
               <User className="h-4 w-4 text-[var(--brand-green)]" />
             </span>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-neutral-500">Profile</p>
-              <h2 className="text-lg font-semibold tracking-[0.18em] text-neutral-50">Your Account</h2>
+              <p className="text-[0.78rem] font-medium text-neutral-500">Profile</p>
+              <h2 className="text-lg font-semibold text-white">Your Account</h2>
+              <p className="text-sm text-gray-400">Manage your profile, plan, and account actions.</p>
             </div>
           </div>
           <TooltipProvider>
             <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="cursor-help rounded-full border border-white/18 bg-white/[0.04] px-3 py-1 text-xs tracking-[0.2em] text-[var(--brand-green)]">
-              Credits {creditSummary}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-3 py-2 text-xs text-[var(--brand-green)]">
-            {tooltipMessage}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
+              <TooltipTrigger asChild>
+                <div className="cursor-default rounded-full border border-neutral-800 bg-neutral-900/70 px-3 py-1 text-xs text-gray-400">
+                  Credits <span className="text-gray-200">{creditsDisplayValue}</span>
+                  {creditsDisplaySuffix ? <span className="ml-1 text-lime-400/70">{creditsDisplaySuffix}</span> : null}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-3 py-2 text-xs text-[var(--brand-green)]">
+                {tooltipMessage}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
 
-        <div className="flex items-start gap-4 pt-3">
-          <Avatar className="h-16 w-16 border border-white/15 bg-white/[0.08]">
+        <div className="flex items-start gap-3 pt-2">
+          <Avatar className="h-14 w-14 border border-white/10 bg-white/[0.08]">
             <AvatarFallback className="bg-[var(--brand-green-muted)] text-lg font-semibold text-[var(--brand-green)]">
               {avatarInitials}
             </AvatarFallback>
@@ -178,12 +180,12 @@ export function ProfileCard({
           </div>
         </div>
 
-        <Separator className="my-4 border-white/10" />
+        <Separator className="my-3 border-white/10" />
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <Button
             type="button"
-            className="w-full justify-start gap-2 rounded-xl bg-[#9FFF57] text-sm font-semibold text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(159,255,87,0.4)]"
+            className="w-full justify-start gap-2 rounded-xl bg-lime-400 py-3 text-sm font-medium text-black transition hover:bg-lime-300"
             onClick={() => {
               onClose?.()
               onUpgradeClick()
@@ -195,7 +197,7 @@ export function ProfileCard({
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-start gap-2 rounded-xl border-white/18 text-neutral-200 transition-all duration-200 hover:border-white/35 hover:bg-white/[0.05] hover:text-neutral-50"
+            className="w-full justify-start gap-2 rounded-xl border border-neutral-700 py-3 text-sm font-medium text-gray-300 transition hover:border-neutral-500 hover:text-white"
             onClick={() => setShowManageDialog(true)}
           >
             <Settings className="h-4 w-4" />
@@ -203,33 +205,28 @@ export function ProfileCard({
           </Button>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-1 md:grid-cols-3">
-          <div className="rounded-xl border border-white/10 bg-black/35 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Total credits</p>
-            <p className="mt-3 text-xl font-semibold text-[var(--brand-green)]">
-              {creditSummary}
-            </p>
+        <div className="mt-4 grid grid-cols-1 gap-2.5 text-center md:grid-cols-3">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-2.5">
+            <p className="text-[0.72rem] font-medium text-gray-500">Total credits</p>
+            <p className="text-sm font-medium text-gray-200">{creditSummary}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/35 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Status</p>
-            <p className="mt-3 text-xl font-semibold text-neutral-100">{statusLabel}</p>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-2.5">
+            <p className="text-[0.72rem] font-medium text-gray-500">Status</p>
+            <p className="text-sm font-medium text-gray-200">{statusLabel}</p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/35 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-neutral-400">Price per shot</p>
-            <p className="mt-3 text-xl font-semibold text-[var(--brand-green)]">$1</p>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-2.5">
+            <p className="text-[0.72rem] font-medium text-gray-500">Price per shot</p>
+            <p className="text-sm font-medium text-lime-400">$1</p>
           </div>
         </div>
       </Card>
 
-      <Separator className="my-6 border-white/10" />
+      <Separator className="my-5 border-white/10" />
 
       <Button
         type="button"
-        className={cn(
-          'w-full justify-center rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-neutral-200 shadow-[0_0_16px_rgba(0,0,0,0.35)] transition-all duration-200',
-          'hover:-translate-y-0.5 hover:border-[var(--brand-green)] hover:bg-white/[0.1] hover:text-[var(--brand-green)]',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2 focus-visible:ring-offset-black',
-        )}
+        variant="ghost"
+        className="mt-3 w-full justify-center rounded-xl border border-neutral-700 px-4 py-3 text-sm font-medium text-gray-400 transition hover:border-neutral-500 hover:text-white"
         onClick={() => setShowLogoutDialog(true)}
         disabled={isSigningOut}
       >
