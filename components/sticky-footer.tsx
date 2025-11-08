@@ -17,7 +17,6 @@ const footerLinks: FooterLink[] = [
   { label: "Pricing", targetId: "pricing" },
   { label: "Early Access", targetId: "early-access" },
   { label: "FAQ", targetId: "faq" },
-  { label: "Support", href: "mailto:modelcast.fit@proton.me" },
 ]
 
 export function StickyFooter() {
@@ -79,9 +78,9 @@ export function StickyFooter() {
         >
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-[#00FF87]/25 via-white/10 to-transparent" aria-hidden />
 
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-8 text-left text-zinc-200 sm:flex-row sm:items-center sm:justify-between sm:py-12">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-8 text-left text-zinc-200 lg:flex-row lg:items-center lg:justify-between lg:py-12">
             <motion.div
-              className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6"
+              className="flex flex-col items-start gap-4 md:flex-row md:items-center md:gap-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
@@ -97,24 +96,37 @@ export function StickyFooter() {
               </div>
             </motion.div>
 
-            <motion.nav
-              className="grid grid-cols-2 gap-x-10 gap-y-4 text-sm md:flex md:flex-wrap md:items-center md:justify-end md:gap-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              {footerLinks.map(({ label, href, targetId }) =>
-                href ? (
-                  <a key={label} href={href} className={linkClassName}>
-                    {label}
-                  </a>
-                ) : (
-                  <button key={label} type="button" onClick={() => scrollToSection(targetId)} className={linkClassName}>
-                    {label}
-                  </button>
-                ),
-              )}
-            </motion.nav>
+            <div className="flex flex-col gap-6 text-sm md:flex-row md:items-center md:gap-10">
+              <motion.nav
+                className="grid grid-cols-2 gap-x-10 gap-y-4 md:flex md:flex-wrap md:items-center md:gap-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                {footerLinks.map(({ label, href, targetId }) =>
+                  href ? (
+                    <a key={label} href={href} className={linkClassName}>
+                      {label}
+                    </a>
+                  ) : (
+                    <button key={label} type="button" onClick={() => scrollToSection(targetId)} className={linkClassName}>
+                      {label}
+                    </button>
+                  ),
+                )}
+              </motion.nav>
+              <nav className="flex flex-row flex-wrap gap-4 text-gray-400 md:border-l md:border-white/10 md:pl-8">
+                <a href="/terms" className="transition hover:text-lime-400">
+                  Terms
+                </a>
+                <a href="/privacy" className="transition hover:text-lime-400">
+                  Privacy
+                </a>
+                <a href="mailto:modelcast.fit@proton.me" className="transition hover:text-lime-400">
+                  Contact
+                </a>
+              </nav>
+            </div>
           </div>
         </motion.footer>
       )}
