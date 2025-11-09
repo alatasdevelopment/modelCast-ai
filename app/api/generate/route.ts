@@ -28,6 +28,18 @@ const resolvePlan = (profile: { plan?: string | null; is_pro?: boolean | null; i
   return "free"
 }
 
+export async function POST(request: Request) {
+  try {
+    return await handleGenerateRequest(request)
+  } catch (error) {
+    console.error("[ERROR] Unhandled /api/generate failure:", error)
+    return NextResponse.json(
+      { success: false, message: "Unexpected server error. Please try again later." },
+      { status: 500 },
+    )
+  }
+}
+
 const isProduction = process.env.NODE_ENV === "production"
 const RAW_DEV_MODE = process.env.DEV_MODE === "true"
 const DEV_MODE = !isProduction && RAW_DEV_MODE
@@ -555,6 +567,7 @@ type FashnCallResult = {
   creditsRemaining?: number
   promptDetails: PromptAssemblyResult
   modelName: string
+  status: string
   capabilities: FashnCapabilitySummary
   appliedAspect: AppliedAspectSummary
   outputMetadata?: Record<string, unknown> | null
@@ -602,6 +615,7 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
   let resolvedCapabilities: FashnCapabilitySummary | null = null
 
   for (const modelName of modelCandidates) {
+    console.log(`[DEBUG] Trying FASHN model: ${modelName}`)
     const attemptWarnings: string[] = []
     const recordWarning = (message: string) => {
       console.warn(message)
@@ -619,6 +633,9 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
       }, { includePrompt: !isTryOnModel })
     } catch (error) {
       lastError = error
+      const fallbackMessage =
+        error instanceof Error ? error.message : String(error ?? "UNABLE_TO_BUILD_INPUTS")
+      console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${fallbackMessage}`)
       continue
     }
 
@@ -713,9 +730,11 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
         } catch {
           message = undefined
         }
-        lastError = new Error(
-          message ?? `FASHN_API_HTTP_${runResponse.status}${runBody ? `: ${runBody.slice(0, 200)}` : ""}`,
-        )
+        console.warn(`[WARN] FASHN API returned ${runResponse.status}:`, message ?? runBody)
+        const failureMessage =
+          message ?? `FASHN_API_HTTP_${runResponse.status}${runBody ? `: ${runBody.slice(0, 200)}` : ""}`
+        lastError = new Error(failureMessage)
+        console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${failureMessage}`)
         continue
       }
 
@@ -729,6 +748,7 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
       if (!runResult || typeof runResult.id !== "string") {
         const message = runResult?.error ?? runResult?.message ?? "FASHN_API_NO_ID"
         lastError = new Error(message)
+        console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${message}`)
         continue
       }
 
@@ -816,11 +836,13 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
             ratio: computeRatioFromDimensions(derivedWidth, derivedHeight),
           }
 
+          console.log(`[SUCCESS] FASHN run completed with ${modelName}`)
           return {
             outputUrl,
             creditsRemaining: creditsRemainingValue,
             promptDetails,
             modelName,
+            status: statusPayload.status ?? "unknown",
             capabilities: resolvedCapabilities ?? summarizeFashnCapabilities({}),
             appliedAspect,
             outputMetadata: combinedMetadata,
@@ -843,10 +865,15 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
 
       throw new Error("FASHN_STATUS_TIMEOUT")
     } catch (error) {
+      let normalizedError: unknown = error
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error("FASHN_API_TIMEOUT")
+        normalizedError = new Error("FASHN_API_TIMEOUT")
       }
-      lastError = error
+      const errorMessage =
+        normalizedError instanceof Error ? normalizedError.message : String(normalizedError ?? "UNKNOWN_ERROR")
+      console.error("[ERROR] FASHN API call failed:", errorMessage)
+      console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${errorMessage}`)
+      lastError = normalizedError
     } finally {
       controller.abort()
       clearTimeout(timeout)
@@ -854,8 +881,10 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
   }
 
   if (lastError instanceof Error) {
+    console.error("[ERROR] All FASHN model attempts failed:", lastError.message)
     throw lastError
   }
+  console.error("[ERROR] All FASHN model attempts failed: UNKNOWN")
   throw new Error("FASHN_API_UNAVAILABLE")
 }
 
@@ -868,7 +897,7 @@ if (SUPABASE_SERVICE_ROLE_KEY) {
   }
 }
 
-export async function POST(request: Request) {
+async function handleGenerateRequest(request: Request) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("[generate] Missing Supabase environment variables.")
     return NextResponse.json({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
@@ -1042,8 +1071,19 @@ export async function POST(request: Request) {
       )
     }
 
-    console.error("[generate] FASHN request failed", error)
-    return NextResponse.json({ success: false, error: message || "FASHN_API_ERROR" }, { status: 502 })
+    console.error("[ERROR] FASHN request failed:", error)
+    return NextResponse.json(
+      { success: false, message: "Image generation failed. Please try again later." },
+      { status: 502 },
+    )
+  }
+
+  if (!fashnResult?.outputUrl || !fashnResult?.status) {
+    console.error("[ERROR] Missing expected output fields from FASHN result:", fashnResult)
+    return NextResponse.json(
+      { success: false, message: "Generation failed due to invalid model response." },
+      { status: 500 },
+    )
   }
 
   const requestedAspectSummary = normalizeAspectRatioValue(parsedPayload.formSettings?.aspectRatio)
@@ -1178,7 +1218,7 @@ export async function POST(request: Request) {
       }
     : null
 
-  const metadata = {
+  const generationMetadata = {
     options: parsedPayload.options,
     form: parsedPayload.formSettings,
     modelImageProvided: Boolean(parsedPayload.modelImageUrl),
@@ -1220,13 +1260,18 @@ export async function POST(request: Request) {
       user_id: user.id,
       image_url: finalOutputUrl,
       plan,
-      metadata,
+      metadata: generationMetadata,
     })
     .select("id, image_url, plan, created_at, metadata")
     .single()
 
   if (generationInsertError) {
     console.error("[generate] failed to persist generation", generationInsertError)
+  }
+
+  const responseMetadata = {
+    model: fashnResult.modelName || "unknown",
+    status: fashnResult.status || "unknown",
   }
 
   return NextResponse.json({
@@ -1236,6 +1281,8 @@ export async function POST(request: Request) {
     totalCredits: planCreditLimit,
     plan,
     debug: aspectDebug ?? undefined,
+    data: finalOutputUrl,
+    metadata: responseMetadata,
     generation: insertedGeneration
       ? {
           id: insertedGeneration.id,

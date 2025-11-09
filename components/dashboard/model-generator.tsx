@@ -82,7 +82,7 @@ type UploadSlot = 'garment' | 'model'
 
 const uploadCopy: Record<UploadSlot, { title: string; subtitle: string }> = {
   garment: {
-    title: 'Upload Garment Image',
+    title: 'Upload Product Image',
     subtitle: 'Use a product cut-out on transparent or plain background.',
   },
   model: {
@@ -90,6 +90,9 @@ const uploadCopy: Record<UploadSlot, { title: string; subtitle: string }> = {
     subtitle: 'Add the reference model photo to dress up.',
   },
 }
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+const MAX_UPLOAD_LABEL = `${(MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(0)} MB`
 
 export function ModelGenerator({
   onGenerate,
@@ -227,6 +230,15 @@ export function ModelGenerator({
       return
     }
 
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast({
+        title: 'Image exceeds size limit',
+        description: `Please keep your ${slot === 'garment' ? 'product' : 'model'} photo under ${MAX_UPLOAD_LABEL}. Compress the file and try again.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
     setUploadingState((state) => ({ ...state, [slot]: true }))
     setPreviewForSlot(slot, null)
     setAssetForSlot(slot, null)
@@ -244,10 +256,14 @@ export function ModelGenerator({
         error instanceof Error && error.message
           ? error.message
           : 'Could not upload your image. Please try again.'
+      const normalizedMessage = userMessage.toLowerCase()
+      const friendlyMessage = normalizedMessage.includes('file size too large') || normalizedMessage.includes('maximum is')
+        ? `Images must be under ${MAX_UPLOAD_LABEL}. Compress your file and try again.`
+        : userMessage
       console.warn('[cloudinary] upload failed', error)
       toast({
         title: 'Upload failed',
-        description: userMessage,
+        description: friendlyMessage,
         variant: 'destructive',
       })
       setAssetForSlot(slot, null)
@@ -349,8 +365,8 @@ export function ModelGenerator({
 
     if (!garmentAsset?.secureUrl) {
       toast({
-        title: 'Garment image required',
-        description: 'Upload the garment or product photo before generating.',
+        title: 'Product image required',
+        description: 'Upload the product photo before generating.',
         variant: 'destructive',
       })
       return

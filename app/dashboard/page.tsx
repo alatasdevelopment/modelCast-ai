@@ -285,8 +285,8 @@ function DashboardContent() {
 
       if (!settings.garmentImageUrl) {
         toast({
-          title: "Garment image required",
-          description: "Upload the garment photo before generating.",
+          title: "Product image required",
+          description: "Upload the product photo before generating.",
           variant: "destructive",
         })
         return null

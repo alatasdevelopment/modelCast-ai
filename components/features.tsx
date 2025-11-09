@@ -9,7 +9,7 @@ const processSteps = [
   {
     num: "01",
     title: "Upload Your Product",
-    desc: "Drop in any garment photo — tees, dresses, jackets, you name it.",
+    desc: "Drop in any product photo — tees, dresses, jackets, you name it.",
     icon: Upload,
   },
   {
