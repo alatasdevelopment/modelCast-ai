@@ -5,7 +5,7 @@ import type React from "react"
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,9 +21,11 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabaseClient = useMemo(() => getSupabaseClient(), [])
   const { user, isLoading: authLoading } = useSupabaseAuth()
   const { toast } = useToast()
+  const showVerifyBanner = searchParams?.get("verify") === "1"
 
   useEffect(() => {
     if (authLoading) {
@@ -121,6 +123,11 @@ export default function LoginPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-2xl p-8"
         >
+          {showVerifyBanner ? (
+            <div className="mb-6 rounded-xl border border-[#22c55e]/40 bg-[#22c55e]/10 p-4 text-sm text-lime-100">
+              Please confirm your account using the link we emailed you. Once verified, sign in with your credentials.
+            </div>
+          ) : null}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-white">
@@ -157,6 +164,18 @@ export default function LoginPage() {
                 Forgot password?
               </Link>
             </div>
+
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              I agree to the{" "}
+              <Link href="/terms" className="text-[#22c55e] hover:text-[#22c55e] transition-colors">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="text-[#22c55e] hover:text-[#22c55e] transition-colors">
+                Privacy Policy
+              </Link>
+              .
+            </p>
 
             <Button
               type="submit"

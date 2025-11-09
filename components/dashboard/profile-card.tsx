@@ -329,16 +329,7 @@ export function ProfileCard({
               Update your information or request an account change.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-5">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full justify-start gap-2 border-white/20 text-white/60"
-              disabled
-            >
-              Coming soon: change password
-            </Button>
-          </div>
+          <div className="py-3" />
           <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"

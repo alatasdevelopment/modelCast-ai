@@ -114,12 +114,12 @@ export function PricingSection() {
       }
 
       if (plan.id === 'free') {
-        router.push('/auth/signin')
+        router.push('/login')
         return
       }
 
       if (!user) {
-        router.push(`/auth/signin?plan=${encodeURIComponent(plan.id)}`)
+        router.push(`/login?plan=${encodeURIComponent(plan.id)}`)
         return
       }
 
@@ -170,7 +170,7 @@ export function PricingSection() {
     if (user) {
       router.push('/dashboard?dialog=credits')
     } else {
-      router.push('/auth/signin?intent=credits')
+      router.push('/login?intent=credits')
     }
   }, [isLoading, router, user])
 

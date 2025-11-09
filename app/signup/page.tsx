@@ -54,7 +54,7 @@ export default function SignupPage() {
       return
     }
     setIsLoading(true)
-    const { error } = await supabaseClient.auth.signUp({
+    const { error, data } = await supabaseClient.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
@@ -68,11 +68,15 @@ export default function SignupPage() {
       console.error("[auth] signup failed", error)
       setErrorMessage(error.message)
     } else {
+      const requiresEmailConfirmation = !data?.session
       toast({
-        title: "Welcome back",
-        description: "Your account is ready.",
+        title: requiresEmailConfirmation ? "Confirm your email" : "Account created",
+        description: requiresEmailConfirmation
+          ? "Click the verification link we just sent you to activate your account."
+          : "You can now sign in.",
       })
-      router.replace("/dashboard")
+      const nextUrl = requiresEmailConfirmation ? "/login?verify=1" : "/login"
+      router.replace(nextUrl)
     }
 
     setIsLoading(false)
@@ -214,11 +218,11 @@ export default function SignupPage() {
               />
               <label htmlFor="terms" className="text-sm text-zinc-300">
                 I agree to the{" "}
-                <Link href="#" className="text-[#22c55e] hover:text-[#22c55e]/80">
+                <Link href="/terms" className="text-[#22c55e] hover:text-[#22c55e] transition-colors">
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link href="#" className="text-[#22c55e] hover:text-[#22c55e]/80">
+                <Link href="/privacy" className="text-[#22c55e] hover:text-[#22c55e] transition-colors">
                   Privacy Policy
                 </Link>
               </label>

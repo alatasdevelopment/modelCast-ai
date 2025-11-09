@@ -17,7 +17,7 @@ export async function middleware(req: NextRequest) {
 
     if (!accessToken) {
       const origin = SITE_URL.length > 0 ? SITE_URL : req.nextUrl.origin
-      const redirectUrl = new URL('/auth/signin', origin)
+      const redirectUrl = new URL('/login', origin)
       redirectUrl.searchParams.set('redirect', req.nextUrl.pathname + req.nextUrl.search)
       return NextResponse.redirect(redirectUrl)
     }
@@ -30,7 +30,7 @@ export async function middleware(req: NextRequest) {
 
     if (!user) {
       const origin = SITE_URL.length > 0 ? SITE_URL : req.nextUrl.origin
-      const redirectUrl = new URL('/auth/signin', origin)
+      const redirectUrl = new URL('/login', origin)
       redirectUrl.searchParams.set('redirect', req.nextUrl.pathname + req.nextUrl.search)
       return NextResponse.redirect(redirectUrl)
     }
@@ -41,7 +41,7 @@ export async function middleware(req: NextRequest) {
   } catch (err) {
     console.error('❌ [middleware] failed to validate Supabase session', err)
     const origin = SITE_URL.length > 0 ? SITE_URL : req.nextUrl.origin
-    const fallbackUrl = new URL('/auth/signin', origin)
+    const fallbackUrl = new URL('/login', origin)
     fallbackUrl.searchParams.set('redirect', req.nextUrl.pathname + req.nextUrl.search)
     return NextResponse.redirect(fallbackUrl)
   }
