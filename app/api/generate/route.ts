@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 
 import {
@@ -10,6 +9,7 @@ import {
 } from "@/lib/fashn"
 import { assemblePrompt, type PromptAssemblyResult, type PromptOptions } from "@/lib/promptUtils"
 import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
+import { apiResponse } from "@/lib/api-response"
 
 const PLAN_CREDIT_LIMITS = {
   free: 2,
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     return await handleGenerateRequest(request)
   } catch (error: any) {
     console.error("[ERROR] Unhandled /api/generate failure:", error?.message ?? error)
-    return NextResponse.json(
+    return apiResponse(
       { success: false, message: "Unexpected server error. Please try again." },
       { status: 500 },
     )
@@ -900,7 +900,7 @@ if (SUPABASE_SERVICE_ROLE_KEY) {
 async function handleGenerateRequest(request: Request) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("[generate] Missing Supabase environment variables.")
-    return NextResponse.json({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
+    return apiResponse({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
   }
 
   if (isProduction && RAW_DEV_MODE) {
@@ -935,16 +935,16 @@ async function handleGenerateRequest(request: Request) {
     }
 
     if (errorDetail) {
-      return NextResponse.json({ error: errorDetail }, { status: 400 })
+      return apiResponse({ error: errorDetail }, { status: 400 })
     }
 
     console.error("[generate] payload parsing failed", error)
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 })
+    return apiResponse({ error: "Invalid input" }, { status: 400 })
   }
 
   if (!FASHN_ENABLED) {
     logInfo("[generate] Mock mode active — returning placeholder image.")
-    return NextResponse.json({
+    return apiResponse({
       success: true,
       outputUrl: MOCK_OUTPUT_URL,
       creditsRemaining: 999,
@@ -965,7 +965,7 @@ async function handleGenerateRequest(request: Request) {
 
   if (!accessToken) {
     console.warn("[generate] Missing access token")
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return apiResponse({ error: "Unauthorized" }, { status: 401 })
   }
 
   const supabase = getSupabaseServerClient(request, accessToken)
@@ -977,7 +977,7 @@ async function handleGenerateRequest(request: Request) {
 
   if (userError || !user) {
     console.warn("[generate] Unable to authenticate user", userError)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return apiResponse({ error: "Unauthorized" }, { status: 401 })
   }
 
   const { data: profileData, error: profileError } = await supabase
@@ -988,7 +988,7 @@ async function handleGenerateRequest(request: Request) {
 
   if (profileError) {
     console.error("[generate] failed to fetch credits", profileError)
-    return NextResponse.json({ success: false, error: "Unable to verify credits" }, { status: 500 })
+    return apiResponse({ success: false, error: "Unable to verify credits" }, { status: 500 })
   }
 
   let profile: ProfileRow | null = profileData ?? null
@@ -1011,7 +1011,7 @@ async function handleGenerateRequest(request: Request) {
 
     if (createError) {
       console.error("[generate] failed to initialize profile", createError)
-      return NextResponse.json({ success: false, error: "PROFILE_INIT_FAILED" }, { status: 500 })
+      return apiResponse({ success: false, error: "PROFILE_INIT_FAILED" }, { status: 500 })
     }
 
     profile =
@@ -1040,15 +1040,15 @@ async function handleGenerateRequest(request: Request) {
   const isProTier = plan !== "free"
 
   if (!isProTier && (parsedPayload.modelImageUrl || parsedPayload.mode === "advanced")) {
-    return NextResponse.json({ error: "Pro plan required for dual-image try-on." }, { status: 403 })
+    return apiResponse({ error: "Pro plan required for dual-image try-on." }, { status: 403 })
   }
 
   if (parsedPayload.mode === "advanced" && !parsedPayload.modelImageUrl) {
-    return NextResponse.json({ error: "Model image required for advanced mode." }, { status: 400 })
+    return apiResponse({ error: "Model image required for advanced mode." }, { status: 400 })
   }
 
   if (!DEV_MODE && normalizedCredits <= 0) {
-    return NextResponse.json({ error: "Out of credits" }, { status: 402 })
+    return apiResponse({ error: "Out of credits" }, { status: 402 })
   }
 
   let fashnResult: FashnCallResult
@@ -1061,7 +1061,7 @@ async function handleGenerateRequest(request: Request) {
       console.warn(
         `[WARN] Pose detection failed — likely missing full body in model image. User ${user.id} upload may be cropped or incomplete.`,
       )
-      return NextResponse.json(
+      return apiResponse(
         {
           error: "Pose detection failed",
           hint: "Please upload a clear full-body photo of the person standing upright against a simple background.",
@@ -1072,7 +1072,7 @@ async function handleGenerateRequest(request: Request) {
     }
 
     console.error("[ERROR] FASHN request failed:", error)
-    return NextResponse.json(
+    return apiResponse(
       { success: false, message: "Image generation failed. Please try again later." },
       { status: 502 },
     )
@@ -1080,7 +1080,7 @@ async function handleGenerateRequest(request: Request) {
 
   if (!fashnResult?.outputUrl || !fashnResult?.status) {
     console.error("[ERROR] Missing expected output fields from FASHN result:", fashnResult)
-    return NextResponse.json(
+    return apiResponse(
       { success: false, message: "Generation failed due to invalid model response." },
       { status: 500 },
     )
@@ -1172,7 +1172,7 @@ async function handleGenerateRequest(request: Request) {
 
     if (updateError) {
       console.error("[generate] failed to decrement credits", updateError)
-      return NextResponse.json({ success: false, error: "Unable to update credits" }, { status: 500 })
+      return apiResponse({ success: false, error: "Unable to update credits" }, { status: 500 })
     }
   }
 
@@ -1274,7 +1274,7 @@ async function handleGenerateRequest(request: Request) {
     status: fashnResult.status || "unknown",
   }
 
-  return NextResponse.json({
+  return apiResponse({
     success: true,
     outputUrl: finalOutputUrl,
     creditsRemaining: fashnResult.creditsRemaining ?? creditsRemaining,

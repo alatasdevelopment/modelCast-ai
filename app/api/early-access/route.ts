@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server"
 import { getSupabaseServerClient } from "@/lib/supabaseClient"
+import { apiResponse } from "@/lib/api-response"
 
 export async function POST(req: Request) {
   try {
     const { email } = (await req.json()) as { email?: string | null }
 
-    if (typeof email !== "string" || !email.includes("@")) {
-      return NextResponse.json(
+    if (typeof email !== "string" || !email.includes("@") || email.length > 120) {
+      return apiResponse(
         { success: false, message: "Invalid email" },
         { status: 400 },
       )
@@ -18,20 +18,20 @@ export async function POST(req: Request) {
     if (error) {
       const isDuplicate = error.code === "23505"
       if (isDuplicate) {
-        return NextResponse.json({ success: true })
+        return apiResponse({ success: true })
       }
 
-      console.error("[EARLY_ACCESS_ERROR]", error.message)
-      return NextResponse.json(
+      console.error("[ERROR] Early access insert failed:", error.message)
+      return apiResponse(
         { success: false, message: "Failed to save your email." },
         { status: 500 },
       )
     }
 
-    return NextResponse.json({ success: true })
+    return apiResponse({ success: true })
   } catch (error) {
-    console.error("[EARLY_ACCESS_FATAL]", error)
-    return NextResponse.json(
+    console.error("[ERROR] Early access API failure:", error)
+    return apiResponse(
       { success: false, message: "Unexpected server error." },
       { status: 500 },
     )

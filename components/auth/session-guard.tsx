@@ -17,7 +17,11 @@ export function SessionGuard({ children, redirectTo = "/login", fallback = null 
 
   useEffect(() => {
     if (!isLoading && !session && redirectTo) {
-      router.replace(redirectTo)
+      let target = redirectTo
+      if (!target.startsWith("/") && !target.startsWith("http")) {
+        target = "/"
+      }
+      router.replace(target)
     }
   }, [isLoading, session, redirectTo, router])
 

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
 import { v2 as cloudinary } from 'cloudinary'
+
+import { apiResponse } from '@/lib/api-response'
 
 const CRON_SECRET = process.env.CRON_SECRET
 
@@ -10,22 +11,22 @@ cloudinary.config({
 })
 
 export async function GET(request: Request) {
-  if (!CRON_SECRET) {
-    console.error('[cleanup] CRON_SECRET not configured')
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const authHeader = request.headers.get('authorization') ?? ''
-  const token = authHeader.replace(/^Bearer\s+/i, '')
-
-  if (token !== CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const now = Date.now()
-  const thirtyMinutesAgo = new Date(now - 30 * 60 * 1000).toISOString()
-
   try {
+    if (!CRON_SECRET) {
+      console.error('[cleanup] CRON_SECRET not configured')
+      return apiResponse({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const authHeader = request.headers.get('authorization') ?? ''
+    const token = authHeader.replace(/^Bearer\s+/i, '')
+
+    if (token !== CRON_SECRET) {
+      return apiResponse({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const now = Date.now()
+    const thirtyMinutesAgo = new Date(now - 30 * 60 * 1000).toISOString()
+
     const { resources = [] } = await cloudinary.search
       .expression(`tags=ephemeral AND uploaded_at<${thirtyMinutesAgo}`)
       .max_results(50)
@@ -43,21 +44,21 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ checked: resources.length, deleted })
+    return apiResponse({ checked: resources.length, deleted })
   } catch (error) {
-    console.error('[cleanup] failed', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    console.error('[ERROR] cleanup job failed:', error)
+    return apiResponse({ error: 'Unexpected server error.' }, { status: 500 })
   }
 }
 
 export function POST() {
-  return NextResponse.json({ error: 'Method Not Allowed' }, { status: 405 })
+  return apiResponse({ error: 'Method Not Allowed' }, { status: 405 })
 }
 
 export function PUT() {
-  return NextResponse.json({ error: 'Method Not Allowed' }, { status: 405 })
+  return apiResponse({ error: 'Method Not Allowed' }, { status: 405 })
 }
 
 export function DELETE() {
-  return NextResponse.json({ error: 'Method Not Allowed' }, { status: 405 })
+  return apiResponse({ error: 'Method Not Allowed' }, { status: 405 })
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
+import { ErrorBoundary } from "@/components/error-boundary"
 import { DashboardNav } from "@/components/dashboard/dashboard-nav"
 import { ProfileCard } from "@/components/dashboard/profile-card"
 import { ModelGenerator, type GenerationSettings } from "@/components/dashboard/model-generator"
@@ -623,7 +624,9 @@ export default function DashboardPage() {
         </div>
       }
     >
-      <DashboardContent />
+      <ErrorBoundary>
+        <DashboardContent />
+      </ErrorBoundary>
     </SessionGuard>
   )
 }
