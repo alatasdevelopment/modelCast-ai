@@ -31,10 +31,10 @@ const resolvePlan = (profile: { plan?: string | null; is_pro?: boolean | null; i
 export async function POST(request: Request) {
   try {
     return await handleGenerateRequest(request)
-  } catch (error) {
-    console.error("[ERROR] Unhandled /api/generate failure:", error)
+  } catch (error: any) {
+    console.error("[ERROR] Unhandled /api/generate failure:", error?.message ?? error)
     return NextResponse.json(
-      { success: false, message: "Unexpected server error. Please try again later." },
+      { success: false, message: "Unexpected server error. Please try again." },
       { status: 500 },
     )
   }
@@ -635,7 +635,7 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
       lastError = error
       const fallbackMessage =
         error instanceof Error ? error.message : String(error ?? "UNABLE_TO_BUILD_INPUTS")
-      console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${fallbackMessage}`)
+      console.warn(`[WARN] fallback to ${modelName} failed:`, fallbackMessage)
       continue
     }
 
@@ -714,30 +714,22 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
     const timeout = setTimeout(() => controller.abort(), FASHN_TIMEOUT_MS)
 
     try {
-      const runResponse = await fetch(FASHN_RUN_ENDPOINT, {
-        method: "POST",
-        headers: requestHeaders,
-        body: JSON.stringify(runRequestPayload),
-        signal: controller.signal,
-      })
-
-      const runBody = await runResponse.text()
-      if (!runResponse.ok) {
-        let message: string | undefined
-        try {
-          const parsed = runBody ? (JSON.parse(runBody) as { message?: string; error?: string }) : null
-          message = parsed?.message ?? parsed?.error ?? undefined
-        } catch {
-          message = undefined
-        }
-        console.warn(`[WARN] FASHN API returned ${runResponse.status}:`, message ?? runBody)
-        const failureMessage =
-          message ?? `FASHN_API_HTTP_${runResponse.status}${runBody ? `: ${runBody.slice(0, 200)}` : ""}`
-        lastError = new Error(failureMessage)
-        console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${failureMessage}`)
-        continue
+      let runResponse: Response
+      try {
+        runResponse = await fetch(FASHN_RUN_ENDPOINT, {
+          method: "POST",
+          headers: requestHeaders,
+          body: JSON.stringify(runRequestPayload),
+          signal: controller.signal,
+        })
+      } catch (networkError) {
+        const message =
+          networkError instanceof Error ? networkError.message : String(networkError ?? "UNKNOWN_ERROR")
+        console.error("[ERROR] FASHN API call failed:", message)
+        throw networkError
       }
 
+      const runBody = await runResponse.text()
       let runResult: FashnRunResponse | null = null
       try {
         runResult = runBody ? (JSON.parse(runBody) as FashnRunResponse) : null
@@ -745,46 +737,54 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
         runResult = null
       }
 
+      if (!runResponse.ok) {
+        const message = runResult?.error ?? runResult?.message ?? undefined
+        console.warn(`[WARN] FASHN returned ${runResponse.status}:`, message ?? runBody)
+        throw new Error(message ?? `FASHN_HTTP_${runResponse.status}`)
+      }
+
       if (!runResult || typeof runResult.id !== "string") {
         const message = runResult?.error ?? runResult?.message ?? "FASHN_API_NO_ID"
-        lastError = new Error(message)
-        console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${message}`)
-        continue
+        throw new Error(message)
       }
 
       const predictionId = runResult.id
       const startedAt = Date.now()
 
       while (Date.now() - startedAt < FASHN_STATUS_TIMEOUT_MS) {
-        const statusResponse = await fetch(`${FASHN_STATUS_ENDPOINT}/${predictionId}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${FASHN_API_KEY}`,
-          },
-        })
-
-        const statusBody = await statusResponse.text()
-        if (!statusResponse.ok) {
-          let statusMessage: string | undefined
-          try {
-            const parsed = statusBody
-              ? (JSON.parse(statusBody) as { message?: string; error?: string; status?: string })
-              : null
-            statusMessage = parsed?.message ?? parsed?.error ?? undefined
-          } catch {
-            statusMessage = undefined
-          }
-          throw new Error(
-            statusMessage ??
-              `FASHN_STATUS_HTTP_${statusResponse.status}${statusBody ? `: ${statusBody.slice(0, 200)}` : ""}`,
-          )
+        let statusResponse: Response
+        try {
+          statusResponse = await fetch(`${FASHN_STATUS_ENDPOINT}/${predictionId}`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${FASHN_API_KEY}`,
+            },
+          })
+        } catch (networkError) {
+          const message =
+            networkError instanceof Error ? networkError.message : String(networkError ?? "UNKNOWN_ERROR")
+          console.error("[ERROR] FASHN API call failed:", message)
+          throw networkError
         }
 
+        const statusBody = await statusResponse.text()
         let statusPayload: FashnStatusResponse | null = null
         try {
           statusPayload = statusBody ? (JSON.parse(statusBody) as FashnStatusResponse) : null
         } catch {
           statusPayload = null
+        }
+
+        if (!statusResponse.ok) {
+          let statusMessage: string | undefined
+          if (statusPayload) {
+            statusMessage =
+              typeof statusPayload.error === "string"
+                ? statusPayload.error
+                : statusPayload.error?.message ?? undefined
+          }
+          console.warn(`[WARN] FASHN returned ${statusResponse.status}:`, statusMessage ?? statusBody)
+          throw new Error(statusMessage ?? `FASHN_STATUS_HTTP_${statusResponse.status}`)
         }
 
         if (!statusPayload) {
@@ -872,7 +872,7 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
       const errorMessage =
         normalizedError instanceof Error ? normalizedError.message : String(normalizedError ?? "UNKNOWN_ERROR")
       console.error("[ERROR] FASHN API call failed:", errorMessage)
-      console.warn(`[WARN] Fallback triggered: ${modelName} failed — ${errorMessage}`)
+      console.warn(`[WARN] fallback to ${modelName} failed:`, errorMessage)
       lastError = normalizedError
     } finally {
       controller.abort()

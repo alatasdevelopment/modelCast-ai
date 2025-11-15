@@ -389,31 +389,38 @@ function DashboardContent() {
           return "POSE_DETECTION_FAILED"
         }
 
+        const extractErrorMessage = () => {
+          if (payload && typeof payload.message === "string" && payload.message.trim().length > 0) {
+            return payload.message
+          }
+          if (payload && typeof payload.error === "string" && payload.error.trim().length > 0) {
+            return payload.error
+          }
+          return "Generation failed. Please try again."
+        }
+
         if (response.status >= 500) {
-          const errorMessage =
-            (payload && typeof payload.error === "string" && payload.error) || "Generation failed. Please try again."
           toast({
             title: "Generation failed",
-            description: errorMessage,
+            description: extractErrorMessage(),
             variant: "destructive",
           })
           return null
         }
 
         if (!response.ok) {
-          const message =
-            (payload && typeof payload.error === "string" && payload.error) ||
-            "Generation failed. Please try again."
-          throw new Error(message)
+          toast({
+            title: "Generation failed",
+            description: extractErrorMessage(),
+            variant: "destructive",
+          })
+          return null
         }
 
         if (!payload || payload.success !== true) {
-          const message =
-            (payload && typeof payload.error === "string" && payload.error) ||
-            "Generation failed. Please try again."
           toast({
             title: "Generation failed",
-            description: message,
+            description: extractErrorMessage(),
             variant: "destructive",
           })
           return null
@@ -482,11 +489,10 @@ function DashboardContent() {
           void fetchGenerations(user.id)
         }
       } catch (error) {
-        console.error("[dashboard] generate prediction failed", error)
+        console.error("[ERROR] generate request failed:", error)
         toast({
-          title: "Generation failed. Please try again.",
-          description:
-            error instanceof Error ? error.message : "Unexpected error occurred.",
+          title: "Something went wrong. Please try again.",
+          description: error instanceof Error ? error.message : "Unexpected error occurred.",
           variant: "destructive",
         })
       } finally {
