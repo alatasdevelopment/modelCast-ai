@@ -1,3 +1,13 @@
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "ModelCast Privacy Policy",
+  description: "Understand how ModelCast securely processes your uploads, protects data, and supports GDPR requests.",
+  alternates: {
+    canonical: "https://modelcast.fit/privacy",
+  },
+}
+
 export default function PrivacyPolicy() {
   return (
     <main className="max-w-3xl mx-auto px-6 py-20 text-gray-300">

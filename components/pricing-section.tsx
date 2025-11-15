@@ -175,10 +175,10 @@ export function PricingSection() {
   }, [isLoading, router, user])
 
   return (
-    <section id="pricing" className="relative py-24 bg-black text-center">
+    <section id="pricing" role="region" aria-labelledby="pricing-heading" className="relative py-24 bg-black text-center">
       <div className="mx-auto max-w-5xl px-4">
         <p className="text-xs uppercase tracking-widest text-lime-400/70 mb-3">Simple, flexible pricing</p>
-        <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">Credits that scale with you</h2>
+        <h2 id="pricing-heading" className="text-4xl md:text-5xl font-bold text-white mb-4">Credits that scale with you</h2>
         <p className="text-gray-400 max-w-2xl mx-auto mb-12">
           Choose a plan that fits your workflow. Your credits unlock every generation — pay only for what you use.
         </p>
@@ -241,6 +241,7 @@ export function PricingSection() {
                     )}
                     disabled={isLoading || isLoadingPlan}
                     onClick={() => handlePlanSelect(plan)}
+                    aria-label={`Select the ${plan.name} plan`}
                   >
                     {isLoadingPlan ? (
                       <>
@@ -265,6 +266,7 @@ export function PricingSection() {
             className="border-lime-400/30 bg-black/40 text-xs font-semibold text-white hover:text-lime-300 hover:bg-black/60"
             onClick={handleAddOnCredits}
             disabled={isLoading}
+            aria-label="Open add-on credits dialog"
           >
             Open add-on credits
           </Button>

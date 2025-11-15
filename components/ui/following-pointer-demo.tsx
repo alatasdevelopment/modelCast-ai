@@ -8,7 +8,9 @@ export default function FollowingPointerDemo() {
           <div className="relative aspect-[16/10] w-full overflow-hidden rounded-tl-lg rounded-tr-lg bg-gray-100">
             <img
               src={blogContent.image || "/placeholder.svg"}
-              alt="thumbnail"
+              alt="Article thumbnail preview"
+              loading="lazy"
+              decoding="async"
               className="h-full transform object-cover transition duration-200 group-hover:scale-95 group-hover:rounded-2xl"
             />
           </div>
@@ -51,7 +53,9 @@ const TitleComponent = ({
       src={avatar || "/placeholder.svg"}
       height="20"
       width="20"
-      alt="thumbnail"
+      alt={`${title} avatar`}
+      loading="lazy"
+      decoding="async"
       className="rounded-full border-2 border-white"
     />
     <p>{title}</p>

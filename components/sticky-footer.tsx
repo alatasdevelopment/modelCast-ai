@@ -12,8 +12,8 @@ type FooterLink = {
 }
 
 const footerLinks: FooterLink[] = [
-  { label: "Home", targetId: "home" },
-  { label: "Features", targetId: "features" },
+  { label: "Home", targetId: "hero" },
+  { label: "Features", targetId: "how-it-works" },
   { label: "Pricing", targetId: "pricing" },
   { label: "Early Access", targetId: "early-access" },
   { label: "FAQ", targetId: "faq" },
@@ -48,13 +48,11 @@ export function StickyFooter() {
   const scrollToSection = (targetId?: string) => {
     if (!targetId) return
 
-    if (targetId === "home") {
+    const element = document.getElementById(targetId)
+    if (!element) {
       window.scrollTo({ top: 0, behavior: "smooth" })
       return
     }
-
-    const element = document.getElementById(targetId)
-    if (!element) return
 
     const headerOffset = 120
     const elementPosition = element.getBoundingClientRect().top + window.pageYOffset

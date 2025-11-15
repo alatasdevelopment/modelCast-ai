@@ -89,34 +89,46 @@ export default function Hero() {
     <div id="hero-section" className="bg-background relative min-h-screen w-full overflow-x-hidden py-32 md:px-6">
       <img
         src="/vector1.webp"
-        alt="Vector"
+        alt=""
+        aria-hidden="true"
         width={300}
         draggable={false}
         height={300}
+        loading="lazy"
+        decoding="async"
         className="absolute top-0 right-0 z-[2] object-cover object-center select-none"
       />
       <img
         src="/vector2.png"
-        alt="Vector"
+        alt=""
+        aria-hidden="true"
         width={300}
         height={300}
         draggable={false}
+        loading="lazy"
+        decoding="async"
         className="absolute top-0 left-0 z-[2] object-cover object-center select-none"
       />
       <img
         src="/vector5.webp"
-        alt="Vector"
+        alt=""
+        aria-hidden="true"
         width={300}
         draggable={false}
         height={300}
+        loading="lazy"
+        decoding="async"
         className="absolute bottom-0 -left-44 z-[2] -rotate-90 object-cover object-center select-none"
       />
       <img
         src="/vector6.png"
-        alt="Vector"
+        alt=""
+        aria-hidden="true"
         width={300}
         draggable={false}
         height={300}
+        loading="lazy"
+        decoding="async"
         className="absolute -right-44 bottom-0 z-[2] rotate-90 object-cover object-center select-none"
       />
       <div className="container mx-auto px-4 2xl:max-w-[1400px]">
@@ -142,8 +154,10 @@ export default function Hero() {
             Prebuilt UI
             <img
               src="/rose.webp"
-              alt="Logo"
+              alt="Rose decorative icon"
               draggable={false}
+              loading="lazy"
+              decoding="async"
               className="mx-4 mb-2 inline-block h-12 w-12 md:h-16 md:w-16"
             />
             blocks to ship beautiful MVPs fast.
@@ -189,7 +203,10 @@ export default function Hero() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1, delay: 1.25 }}
             src="/vector4.webp"
-            alt="Next.js"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
             className="mt-4 mr-2 hidden w-96 brightness-[4] select-none xl:block"
           />
           <span className="text-sm text-gray-500">We use industry standards like </span>
@@ -199,6 +216,8 @@ export default function Hero() {
             alt="Next.js"
             width={28}
             height={28}
+            loading="lazy"
+            decoding="async"
             className="h-7 w-7 select-none"
           />
           <img
@@ -206,6 +225,8 @@ export default function Hero() {
             alt="Tailwind CSS"
             width={28}
             height={28}
+            loading="lazy"
+            decoding="async"
             className="h-7 w-7 select-none"
             draggable={false}
           />
@@ -214,6 +235,8 @@ export default function Hero() {
             alt="Framer Motion"
             width={24}
             height={24}
+            loading="lazy"
+            decoding="async"
             className="h-6 w-6 select-none"
             draggable={false}
           />
@@ -225,10 +248,13 @@ export default function Hero() {
           >
             <img
               src="/vector3.webp"
-              alt="Vector graphic"
+              alt=""
+              aria-hidden="true"
               width={384}
               height={100}
               draggable={false}
+              loading="lazy"
+              decoding="async"
               className="brightness-[4]"
             />
           </motion.div>

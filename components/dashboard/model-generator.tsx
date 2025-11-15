@@ -528,7 +528,9 @@ export function ModelGenerator({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewUrl}
-                alt="Uploaded preview"
+                alt={slot === 'model' ? 'Uploaded model reference' : 'Uploaded garment preview'}
+                loading="lazy"
+                decoding="async"
                 className="max-h-44 w-auto rounded-xl object-cover shadow-[0_0_20px_rgba(159,255,87,0.16)]"
               />
               <button

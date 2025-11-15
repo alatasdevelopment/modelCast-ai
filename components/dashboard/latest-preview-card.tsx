@@ -55,6 +55,8 @@ export function LatestPreviewCard({ image, isGenerating, onDownload }: LatestPre
               <img
                 src={image?.url}
                 alt="Latest generated model shot"
+                loading="lazy"
+                decoding="async"
                 className={`h-full w-full object-cover transition-all duration-200 ease-out ${
                   isGenerating ? 'scale-105 blur-[2px] brightness-95' : 'group-hover:scale-[1.03]'
                 }`}

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://modelcast.fit/sitemap.xml

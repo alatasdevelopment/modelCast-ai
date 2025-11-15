@@ -21,6 +21,8 @@ export default function Hero() {
   return (
     <section
       id="hero"
+      role="banner"
+      aria-labelledby="hero-heading"
       className="relative overflow-hidden bg-black py-12 text-center md:py-24"
     >
       <div className="absolute inset-0 -z-10 overflow-hidden">
@@ -50,6 +52,7 @@ export default function Hero() {
         </motion.p>
 
         <motion.h1
+          id="hero-heading"
           custom={0.2}
           variants={heroVariants}
           initial="hidden"
@@ -60,7 +63,7 @@ export default function Hero() {
             geist.className,
           )}
         >
-          Create production-quality model photos instantly.
+          Generate model photos with AI
         </motion.h1>
 
         <motion.p
@@ -86,6 +89,7 @@ export default function Hero() {
               variant="lime"
               size="lg"
               className="btn-lime group relative overflow-hidden rounded-full px-8 py-3 text-base font-semibold transition-transform duration-300 hover:scale-[1.03]"
+              aria-label="Start generating AI model photos"
             >
               <span className="relative z-10 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 animate-spin-slow" /> Start generating
@@ -98,11 +102,25 @@ export default function Hero() {
             className="px-6 text-base font-semibold text-gray-300 transition-colors duration-200 hover:text-white"
             asChild
           >
-            <Link href="#features" prefetch={false}>
+            <Link href="#how-it-works" prefetch={false} aria-label="View how ModelCast works">
               View how it works →
             </Link>
           </Button>
         </motion.div>
+
+        <motion.p
+          custom={0.45}
+          variants={heroVariants}
+          initial="hidden"
+          animate="visible"
+          className="text-sm text-zinc-400"
+        >
+          Learn more in our{" "}
+          <Link href="#faq" prefetch={false} className="text-lime-300 underline-offset-4 hover:underline">
+            FAQ
+          </Link>{" "}
+          about credits, privacy, and results.
+        </motion.p>
 
         <motion.p
           initial={{ opacity: 0, y: 18 }}

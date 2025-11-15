@@ -1,8 +1,10 @@
 "use client"
 
+import { useState, type FormEvent } from "react"
 import { motion } from "framer-motion"
 import { ArrowRight, Lock, Sparkles, Users, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
 
 const totalSpots = 100
 const spotsTaken = 53
@@ -24,10 +26,60 @@ const perks = [
     description: "Work directly with the team—share feedback, influence the roadmap, and co-build features.",
   },
 ]
-
 export function EarlyAccessSection() {
+  const [email, setEmail] = useState("")
+  const [isFormVisible, setIsFormVisible] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
+
+  const handleJoin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isSubmitting) return
+
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail || !trimmedEmail.includes("@")) {
+      toast({
+        title: "Enter a valid email",
+        description: "We need your best contact to reserve your spot.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch("/api/early-access", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: trimmedEmail }),
+      })
+
+      const data = (await response.json()) as { success?: boolean; message?: string }
+
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message ?? "Something went wrong.")
+      }
+
+      toast({
+        title: "You're in! We'll notify you soon.",
+      })
+      setEmail("")
+    } catch (error) {
+      console.error("[EARLY_ACCESS_JOIN_ERROR]", error)
+      toast({
+        title: "Unable to save your email",
+        description: error instanceof Error ? error.message : "Please try again in a moment.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
-    <section id="early-access" className="relative py-24 px-4">
+    <section id="early-access" role="region" aria-labelledby="early-access-heading" className="relative py-24 px-4">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(166,255,0,0.12),_transparent_55%)] pointer-events-none" />
       <div className="relative max-w-[1100px] mx-auto text-center">
         <motion.div
@@ -48,6 +100,7 @@ export function EarlyAccessSection() {
           </motion.div>
 
           <motion.h2
+            id="early-access-heading"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -113,14 +166,46 @@ export function EarlyAccessSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.6 }}
+            className="space-y-4"
           >
             <Button
               variant="lime"
               className="w-full sm:w-auto text-base px-8 py-4 font-semibold shadow-[0_0_12px_rgba(163,255,88,0.25)] hover:shadow-[0_0_18px_rgba(163,255,88,0.35)]"
+              aria-label="Join the ModelCast Early Access list"
+              onClick={() => setIsFormVisible(true)}
             >
               Join the Early Access List
               <ArrowRight className="w-4 h-4" />
             </Button>
+
+            {isFormVisible ? (
+              <form
+                onSubmit={handleJoin}
+                className="mx-auto flex w-full max-w-xl flex-col gap-3 rounded-2xl border border-white/10 bg-black/40 p-4 text-left sm:flex-row sm:items-center"
+              >
+                <label className="sr-only" htmlFor="early-access-email">
+                  Email address
+                </label>
+                <input
+                  id="early-access-email"
+                  type="email"
+                  placeholder="Enter your email"
+                  className="w-full rounded-xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-300"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  disabled={isSubmitting}
+                  aria-required="true"
+                />
+                <Button
+                  type="submit"
+                  variant="lime"
+                  className="w-full rounded-xl px-6 py-3 text-sm font-semibold sm:w-auto"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Saving..." : "Join"}
+                </Button>
+              </form>
+            ) : null}
           </motion.div>
 
           <motion.p

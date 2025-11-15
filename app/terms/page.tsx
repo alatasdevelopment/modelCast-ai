@@ -1,3 +1,13 @@
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "ModelCast Terms & Conditions",
+  description: "Review the usage terms, licensing details, and refund policy that govern the ModelCast platform.",
+  alternates: {
+    canonical: "https://modelcast.fit/terms",
+  },
+}
+
 export default function TermsOfService() {
   return (
     <main className="max-w-3xl mx-auto px-6 py-20 text-gray-300">

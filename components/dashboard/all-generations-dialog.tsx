@@ -104,7 +104,9 @@ export function AllGenerationsDialog({
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={displayUrl}
-                            alt="Generated model"
+                            alt={`Generated ${image.plan === 'free' ? 'preview' : 'HD'} model photo`}
+                            loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-cover transition-all duration-200 ease-out group-hover:scale-[1.02]"
                             onError={() => onImageError(image.id)}
                           />

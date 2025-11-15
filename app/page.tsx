@@ -79,7 +79,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen w-full relative bg-black">
+    <main id="home" role="main" className="min-h-screen w-full relative bg-black">
       {/* Pearl Mist Background with Top Glow */}
       <div
         className="absolute inset-0 z-0"
@@ -95,8 +95,10 @@ export default function Home() {
             ? "border-white/20 shadow-[0_18px_45px_rgba(0,0,0,0.55)]"
             : "border-white/15 shadow-[0_18px_40px_rgba(0,0,0,0.4)]"
         } backdrop-blur-md px-6 py-3`}
+        role="navigation"
+        aria-label="Primary navigation"
       >
-        <a className="flex items-center gap-3 text-white" href="https://modelcast.fit">
+        <a className="flex items-center gap-3 text-white" href="/" aria-label="ModelCast home">
           <Logo priority className="h-10 w-10" />
           <span className="text-[1.08rem] font-semibold tracking-[0.03em] text-zinc-50">ModelCast</span>
         </a>
@@ -106,7 +108,7 @@ export default function Home() {
             className="relative px-4 py-2 text-zinc-400 transition-all duration-200 hover:text-[var(--brand-green)] cursor-pointer pointer-events-auto"
             onClick={(e) => {
               e.preventDefault()
-              const element = document.getElementById("features")
+              const element = document.getElementById("how-it-works")
               if (element) {
                 const headerOffset = 120
                 const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
@@ -226,8 +228,8 @@ export default function Home() {
       </header>
 
       {/* Mobile Header */}
-      <header className="sticky top-4 z-[9999] mx-4 flex w-auto flex-row items-center justify-between rounded-full border border-white/15 bg-black/60 px-5 py-3 text-zinc-50 shadow-[0_18px_45px_rgba(0,0,0,0.45)] backdrop-blur-md md:hidden">
-        <a className="flex items-center justify-center gap-3" href="https://modelcast.fit">
+      <header className="sticky top-4 z-[9999] mx-4 flex w-auto flex-row items-center justify-between rounded-full border border-white/15 bg-black/60 px-5 py-3 text-zinc-50 shadow-[0_18px_45px_rgba(0,0,0,0.45)] backdrop-blur-md md:hidden" role="navigation" aria-label="Mobile navigation">
+        <a className="flex items-center justify-center gap-3" href="/" aria-label="ModelCast home">
           <Logo priority className="h-9 w-9" sizes="(max-width: 768px) 2.25rem, 2.5rem" />
           <span className="text-[1.04rem] font-semibold tracking-[0.03em] text-zinc-50">ModelCast</span>
         </a>
@@ -257,7 +259,7 @@ export default function Home() {
           <div className="absolute top-20 left-4 right-4 rounded-2xl border border-white/15 bg-black/90 p-6 shadow-2xl backdrop-blur-lg">
             <nav className="flex flex-col space-y-4">
               <button
-                onClick={() => handleMobileNavClick("features")}
+                onClick={() => handleMobileNavClick("how-it-works")}
                 className="text-left rounded-lg px-4 py-3 text-lg font-medium text-zinc-300 transition-all duration-200 hover:text-[var(--brand-green)] hover:bg-white/[0.05]"
               >
                 Features
@@ -325,36 +327,20 @@ export default function Home() {
         </div>
       )}
 
-      {/* Hero Section */}
-      <section id="home">
-        <Hero />
-      </section>
+      <Hero />
 
-      {/* Model Styles Section */}
       <ModelStyles />
 
-      {/* Features Section */}
-      <div id="features">
-        <Features />
-      </div>
+      <Features />
 
-      {/* Pricing Section */}
-      <div id="pricing">
-        <PricingSection />
-      </div>
+      <PricingSection />
 
-      {/* Early Access Section */}
-      <div id="early-access">
-        <EarlyAccessSection />
-      </div>
+      <EarlyAccessSection />
 
-      {/* FAQ Section */}
-      <div id="faq">
-        <FAQSection />
-      </div>
+      <FAQSection />
 
       {/* Sticky Footer */}
       <StickyFooter />
-    </div>
+    </main>
   )
 }

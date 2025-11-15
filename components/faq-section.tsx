@@ -40,7 +40,7 @@ export function FAQSection() {
   ]
 
   return (
-    <section id="faq" className="relative overflow-hidden pb-120 pt-24">
+    <section id="faq" role="region" aria-labelledby="faq-heading" className="relative overflow-hidden pb-120 pt-24">
       {/* Background blur effects */}
       <div className="bg-primary/20 absolute top-1/2 -right-20 z-[-1] h-64 w-64 rounded-full opacity-80 blur-3xl"></div>
       <div className="bg-primary/20 absolute top-1/2 -left-20 z-[-1] h-64 w-64 rounded-full opacity-80 blur-3xl"></div>
@@ -60,6 +60,7 @@ export function FAQSection() {
         </motion.div>
 
         <motion.h2
+          id="faq-heading"
           className="mx-auto mt-6 max-w-xl text-center text-4xl font-medium md:text-[54px] md:leading-[60px]"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

@@ -63,7 +63,7 @@ export default function Features() {
   )
 
   return (
-    <section id="how-it-works" className="relative py-24 bg-black text-center">
+    <section id="how-it-works" role="region" aria-labelledby="how-it-works-heading" className="relative py-24 bg-black text-center">
       <div className="mx-auto max-w-5xl px-4">
         <Button
           variant="ghost"
@@ -73,7 +73,7 @@ export default function Features() {
           ✨ How It Works
         </Button>
 
-        <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">Three Simple Steps</h2>
+        <h2 id="how-it-works-heading" className="text-3xl md:text-5xl font-bold text-white mb-4">Three Simple Steps</h2>
         <p className="text-gray-400 max-w-2xl mx-auto mb-12">
           Transform your product photos into professional model shots in seconds.
         </p>
