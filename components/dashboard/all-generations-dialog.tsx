@@ -77,11 +77,7 @@ export function AllGenerationsDialog({
           <div className="grid grid-cols-1 gap-4 overflow-y-auto max-h-[70vh] p-2 sm:grid-cols-2">
             {images.length === 0 ? (
               <div className={`col-span-full ${cardBaseClass}`}>
-                <PlaceholderContent
-                  title="No generations yet"
-                  subtitle="Preview (Watermarked · Standard Resolution)"
-                  icon="logo"
-                />
+                <PlaceholderContent title="No generations yet" subtitle="Preview (Standard Resolution)" icon="logo" />
                 <div className="invisible mt-3 h-9 w-[70%] rounded-xl sm:w-[60%]" />
               </div>
             ) : (
@@ -100,7 +96,7 @@ export function AllGenerationsDialog({
                       {isBroken ? (
                         <PlaceholderContent
                           title="Preview not available"
-                          subtitle="Preview (Watermarked · Standard Resolution)"
+                          subtitle="Preview (Standard Resolution)"
                           icon="logo"
                         />
                       ) : (
@@ -116,9 +112,7 @@ export function AllGenerationsDialog({
                       )}
                       <div className="mt-3 flex w-full flex-col items-center gap-2">
                         <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-                          {image.plan === 'free'
-                            ? 'Preview (Watermarked · Standard Resolution)'
-                            : 'HD Result'}
+                          {image.plan === 'free' ? 'Preview (Standard Resolution)' : 'HD Result'}
                         </p>
                         {isBroken ? (
                           <div className="h-9 w-[70%] rounded-xl border border-white/10 sm:w-[60%]" />
@@ -130,7 +124,7 @@ export function AllGenerationsDialog({
                               void onDownload(downloadUrl, shouldWatermark)
                             }}
                             aria-label="Download"
-                            title={shouldWatermark ? 'Download (watermarked)' : 'Download'}
+                            title="Download"
                           >
                             <Download className="h-4 w-4" />
                           </button>

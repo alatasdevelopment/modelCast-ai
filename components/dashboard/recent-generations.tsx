@@ -72,22 +72,14 @@ export function RecentGenerations({ images, isGenerating = false, onDownload }: 
 
   const loadingStateCard = (
     <div className={cardBaseClass}>
-      <PlaceholderContent
-        title="Preparing previews…"
-        subtitle="Preview (Watermarked · Standard Resolution)"
-        icon="spinner"
-      />
+      <PlaceholderContent title="Preparing previews…" subtitle="Preview (Standard Resolution)" icon="spinner" />
       <div className="invisible mt-3 h-9 w-[70%] rounded-xl sm:w-[60%]" />
     </div>
   )
 
   const emptyStateCard = (
     <div className={cardBaseClass}>
-      <PlaceholderContent
-        title="No generations yet"
-        subtitle="Preview (Watermarked · Standard Resolution)"
-        icon="logo"
-      />
+      <PlaceholderContent title="No generations yet" subtitle="Preview (Standard Resolution)" icon="logo" />
       <div className="invisible mt-3 h-9 w-[70%] rounded-xl sm:w-[60%]" />
     </div>
   )
@@ -105,7 +97,7 @@ export function RecentGenerations({ images, isGenerating = false, onDownload }: 
           {isBroken ? (
             <PlaceholderContent
               title="Preview not available"
-              subtitle="Preview (Watermarked · Standard Resolution)"
+              subtitle="Preview (Standard Resolution)"
               icon="logo"
             />
           ) : (
@@ -121,9 +113,7 @@ export function RecentGenerations({ images, isGenerating = false, onDownload }: 
           )}
           <div className="mt-3 flex w-full flex-col items-center gap-2">
             <p className="text-[11px] uppercase tracking-wide text-neutral-600">
-              {image.plan === 'free'
-                ? 'Preview (Watermarked · Standard Resolution)'
-                : 'HD Result'}
+              {image.plan === 'free' ? 'Preview (Standard Resolution)' : 'HD Result'}
             </p>
             {isBroken ? (
               <div className="h-9 w-[70%] rounded-xl border border-white/10 sm:w-[60%]" />
@@ -135,7 +125,7 @@ export function RecentGenerations({ images, isGenerating = false, onDownload }: 
                   void onDownload(downloadUrl, shouldWatermark)
                 }}
                 aria-label="Download"
-                title={shouldWatermark ? 'Download (watermarked)' : 'Download'}
+                title="Download"
               >
                 <Download className="h-4 w-4" />
               </button>

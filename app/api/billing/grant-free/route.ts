@@ -69,10 +69,7 @@ export async function POST(request: Request) {
   }
 
   if (profile.is_pro) {
-    return NextResponse.json(
-      { success: false, error: "Pro members already have unlimited access to non-watermarked generations." },
-      { status: 400 },
-    )
+    return NextResponse.json({ success: false, error: "Pro members already have unlimited access to HD generations." }, { status: 400 })
   }
 
   const currentCredits = typeof profile.credits === "number" ? profile.credits : 0

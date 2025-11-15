@@ -23,9 +23,9 @@ export function LatestPreviewCard({ image, isGenerating, onDownload }: LatestPre
   const hasPreview = Boolean(image) && !isBroken
   const label = hasPreview
     ? image?.plan === 'free'
-      ? 'Preview (Watermarked · Standard Resolution)'
+      ? 'Preview (Standard Resolution)'
       : 'HD Result'
-    : 'Preview (Watermarked · Standard Resolution)'
+    : 'Preview (Standard Resolution)'
   const shouldWatermark = image?.plan === 'free'
 
   const downloadUrl = useMemo(() => {
@@ -94,7 +94,7 @@ export function LatestPreviewCard({ image, isGenerating, onDownload }: LatestPre
                 void onDownload(downloadUrl, shouldWatermark)
               }}
               aria-label="Download latest model shot"
-              title={shouldWatermark ? 'Download (watermarked)' : 'Download'}
+              title="Download"
             >
               <Download className="mr-1.5 h-4 w-4" />
               Download

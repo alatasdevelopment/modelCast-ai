@@ -1,7 +1,6 @@
 "use client"
 
 import { type ChangeEvent, type DragEvent, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2, Lock, Sparkles, Upload, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -102,7 +101,6 @@ export function ModelGenerator({
   isPro,
   plan,
 }: ModelGeneratorProps) {
-  const router = useRouter()
   const [formValues, setFormValues] = useState<GenerationFormState>({
     styleType: 'street',
     gender: 'female',
@@ -598,7 +596,7 @@ export function ModelGenerator({
               <Button
                 variant="link"
                 className="text-[#9FFF57] hover:text-[#CFFF8A] p-0"
-                onClick={() => router.push('/pricing')}
+                onClick={onUpgradeClick}
               >
                 Upgrade to Pro
               </Button>
@@ -808,7 +806,7 @@ export function ModelGenerator({
         <div className="space-y-2">
           <p className="text-xs text-neutral-400">
             {modeLabel.startsWith('Preview')
-              ? 'Preview mode delivers one watermarked image and uses 1 credit ($1).'
+              ? 'Preview mode delivers one standard-resolution image and uses 1 credit ($1).'
               : 'HD mode delivers two high-res images and uses 1 credit ($1).'}
           </p>
           {!hasCredits ? (

@@ -13,14 +13,7 @@ import { SessionGuard } from "@/components/auth/session-guard"
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
 import { useToast } from "@/hooks/use-toast"
 import { getSupabaseClient } from "@/lib/supabaseClient"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
 const PLAN_LIMITS_MAP: Record<PlanTier, number> = {
@@ -53,7 +46,6 @@ function DashboardContent() {
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const supabaseClient = useMemo(() => getSupabaseClient(), [])
 
@@ -168,7 +160,14 @@ function DashboardContent() {
     return typeof maybeName === "string" && maybeName.trim().length > 0 ? maybeName : null
   }, [user?.user_metadata?.full_name])
 
-  const handleUpgradeClick = useCallback(() => setShowUpgradeModal(true), [])
+  const handleUpgradeClick = useCallback(() => {
+    toast({
+      title: "Explore Pro plans",
+      description: "Opening the pricing page so you can compare tiers.",
+      duration: 4000,
+    })
+    router.push("/pricing")
+  }, [router, toast])
 
   const handleDownload = useCallback(
     async (url: string, isWatermarked: boolean) => {
@@ -180,7 +179,7 @@ function DashboardContent() {
         const blob = await response.blob()
         const blobUrl = URL.createObjectURL(blob)
         const link = document.createElement("a")
-        const suffix = isWatermarked ? "_watermarked" : ""
+        const suffix = isWatermarked ? "_preview" : ""
         link.href = blobUrl
         link.download = `modelcast_output${suffix}.png`
         document.body.appendChild(link)
@@ -189,9 +188,7 @@ function DashboardContent() {
         URL.revokeObjectURL(blobUrl)
         toast({
           title: "Download started",
-          description: isWatermarked
-            ? "Watermarked preview saved to your device."
-            : "HD image saved to your device.",
+          description: isWatermarked ? "Preview saved to your device." : "HD image saved to your device.",
         })
       } catch (error) {
         console.error("[dashboard] download failed", error)
@@ -537,7 +534,7 @@ function DashboardContent() {
   const totalCredits = DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP[plan]
   const currentModeLabel =
     plan === "free"
-      ? "Free Preview Mode (watermarked)"
+      ? "Free Preview Mode"
       : plan === "pro"
         ? "Pro Mode (HD dual-image try-on)"
         : "Studio Mode (HD + batch/API)"
@@ -606,42 +603,6 @@ function DashboardContent() {
           </div>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-        <DialogContent className="max-w-md border-white/10 bg-[#101010]/95 px-6 py-6 text-white shadow-[0_0_28px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:px-8">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold tracking-[0.14em] text-[var(--brand-green)]">
-              Upgrade to HD Quality
-            </DialogTitle>
-            <DialogDescription className="text-sm text-neutral-300">
-              Unlock HD renders and keep generating runway-ready photos.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4 text-neutral-200">
-            <p>Each new model shot costs just $1. Pay only when you need another render.</p>
-            <p className="text-sm text-neutral-400">
-              Payments are coming soon. Tap notify and we&rsquo;ll email you the moment purchases open.
-            </p>
-          </div>
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full border-white/20 bg-white/10 text-neutral-200 transition hover:border-white/30 hover:bg-white/[0.18] hover:text-white sm:w-auto"
-              onClick={() => setShowUpgradeModal(false)}
-            >
-              Not now
-            </Button>
-            <Button
-              type="button"
-              className="w-full rounded-xl bg-gradient-to-r from-[var(--brand-green)] to-[var(--brand-green-hover)] text-black shadow-[0_0_22px_rgba(159,255,87,0.25)] transition hover:translate-y-[-1px] hover:shadow-[0_0_26px_rgba(159,255,87,0.35)] focus-visible:shadow-[0_0_28px_rgba(159,255,87,0.4)] sm:w-auto"
-              onClick={() => setShowUpgradeModal(false)}
-            >
-              Notify me
-            </Button>
-          </DialogFooter>
-      </DialogContent>
-    </Dialog>
 
   </div>
 )
