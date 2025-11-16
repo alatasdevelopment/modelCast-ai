@@ -14,6 +14,7 @@ import { Logo } from "@/components/logo"
 import { getSupabaseClient } from "@/lib/supabaseClient"
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
 import { useToast } from "@/hooks/use-toast"
+import { isAllowedProvider, normalizeEmail } from "@/lib/email-utils"
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -53,9 +54,21 @@ export default function SignupPage() {
       setErrorMessage("Passwords do not match.")
       return
     }
+    const normalizedEmail = normalizeEmail(formData.email)
+
+    if (!isAllowedProvider(normalizedEmail)) {
+      toast({
+        title: "Email not supported",
+        description:
+          "This email provider is not supported. Please use a standard provider (Gmail, Outlook, Yahoo, iCloud, Proton, etc.).",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
     const { error, data } = await supabaseClient.auth.signUp({
-      email: formData.email,
+      email: normalizedEmail,
       password: formData.password,
       options: {
         data: {

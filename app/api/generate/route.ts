@@ -7,6 +7,7 @@ import {
   getFashnCapabilities,
   getModelCandidates,
 } from "@/lib/fashn"
+import { determineStartingCredits, normalizeEmail } from "@/lib/signup-credits"
 import { assemblePrompt, type PromptAssemblyResult, type PromptOptions } from "@/lib/promptUtils"
 import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 import { apiResponse } from "@/lib/api-response"
@@ -994,15 +995,38 @@ async function handleGenerateRequest(request: Request) {
   let profile: ProfileRow | null = profileData ?? null
 
   if (!profile) {
+    const profileClient = adminClient ?? supabase
+
+    if (!user.email) {
+      return apiResponse({ success: false, error: "INVALID_EMAIL" }, { status: 400 })
+    }
+
+    let normalizedEmail: string
+    try {
+      normalizedEmail = normalizeEmail(user.email)
+    } catch {
+      return apiResponse({ success: false, error: "INVALID_EMAIL" }, { status: 400 })
+    }
+
+    let startingCredits: number
+    try {
+      startingCredits = await determineStartingCredits({
+        supabase: profileClient,
+        normalizedEmail,
+      })
+    } catch (error) {
+      console.error("[generate] failed to resolve signup credits", error)
+      return apiResponse({ success: false, error: "PROFILE_INIT_FAILED" }, { status: 500 })
+    }
+
     const defaultProfile = {
       id: user.id,
-      credits: PLAN_CREDIT_LIMITS.free,
+      credits: startingCredits,
       plan: "free",
       is_pro: false,
       is_studio: false,
     } as const
 
-    const profileClient = adminClient ?? supabase
     const { data: createdProfile, error: createError } = await profileClient
       .from("profiles")
       .upsert(defaultProfile, { onConflict: "id" })
@@ -1021,7 +1045,6 @@ async function handleGenerateRequest(request: Request) {
         is_studio: defaultProfile.is_studio,
         plan: defaultProfile.plan,
       }
-
   }
 
   if (DEV_MODE && profile) {
