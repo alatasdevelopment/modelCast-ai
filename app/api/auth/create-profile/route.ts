@@ -1,12 +1,7 @@
 import { cookies } from "next/headers"
 
 import { apiResponse } from "@/lib/api-response"
-import {
-  EMAIL_PROVIDER_ERROR_MESSAGE,
-  determineStartingCredits,
-  normalizeEmail,
-  validateEmailProvider,
-} from "@/lib/signup-credits"
+import { EMAIL_PROVIDER_ERROR_MESSAGE, normalizeEmail, validateEmailProvider } from "@/lib/signup-credits"
 import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -128,20 +123,9 @@ export async function POST(request: Request) {
       })
     }
 
-    let startingCredits: number
-    try {
-      startingCredits = await determineStartingCredits({
-        supabase: profileClient,
-        normalizedEmail,
-      })
-    } catch (error) {
-      console.error("[auth] failed to resolve signup credits", error)
-      return apiResponse({ success: false, error: "SIGNUP_CREDIT_LOOKUP_FAILED" }, { status: 500 })
-    }
-
     const defaultProfile = {
       id: user.id,
-      credits: startingCredits,
+      credits: 0,
       plan: "free",
       is_pro: false,
       is_studio: false,
@@ -164,7 +148,7 @@ export async function POST(request: Request) {
         if (profileAfterConflict) {
           return apiResponse({
             success: true,
-            ...buildProfilePayload(profileAfterConflict, defaultProfile.credits),
+            ...buildProfilePayload(profileAfterConflict, 0),
           })
         }
       }
@@ -175,7 +159,7 @@ export async function POST(request: Request) {
 
     return apiResponse({
       success: true,
-      ...buildProfilePayload(createdProfile ?? null, defaultProfile.credits),
+      ...buildProfilePayload(createdProfile ?? null, 0),
     })
   } catch (error) {
     console.error("[ERROR] create-profile route failure:", error)

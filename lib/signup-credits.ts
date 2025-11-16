@@ -113,6 +113,43 @@ export function validateEmailProvider(normalizedEmail: string): boolean {
   return isAllowedEmailProvider(normalizedEmail)
 }
 
+type EmailCreditRow = {
+  credits_remaining: number | null
+}
+
+const isMissingCreditHistoryTable = (error?: { code?: string | null } | null): boolean => {
+  return Boolean(error && error.code === "PGRST205")
+}
+
+async function fetchEmailCreditBalance({
+  supabase,
+  normalizedEmail,
+}: {
+  supabase: SupabaseClient
+  normalizedEmail: string
+}): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("email_credit_history")
+    .select<EmailCreditRow>("credits_remaining")
+    .eq("email", normalizedEmail)
+    .maybeSingle()
+
+  if (isMissingCreditHistoryTable(error)) {
+    console.warn("[credits] email_credit_history table not found; falling back to default credits.")
+    return null
+  }
+
+  if (error && error.code !== "PGRST116") {
+    throw error
+  }
+
+  if (typeof data?.credits_remaining === "number") {
+    return data.credits_remaining
+  }
+
+  return null
+}
+
 export async function determineStartingCredits({
   supabase,
   normalizedEmail,
@@ -124,21 +161,21 @@ export async function determineStartingCredits({
     return DEV_MODE_CREDITS
   }
 
-  const { data, error } = await supabase
-    .from("signup_emails")
-    .select("email")
-    .eq("email", normalizedEmail)
-    .maybeSingle()
-
-  if (error && error.code !== "PGRST116") {
-    throw error
+  const existingCredits = await fetchEmailCreditBalance({ supabase, normalizedEmail })
+  if (typeof existingCredits === "number") {
+    return existingCredits
   }
 
-  if (data) {
-    return 0
-  }
+  const { data: insertedRow, error: insertError } = await supabase
+    .from("email_credit_history")
+    .insert({ email: normalizedEmail, credits_remaining: DEFAULT_FREE_CREDITS })
+    .select<EmailCreditRow>("credits_remaining")
+    .single()
 
-  const { error: insertError } = await supabase.from("signup_emails").insert({ email: normalizedEmail })
+  if (isMissingCreditHistoryTable(insertError)) {
+    console.warn("[credits] email_credit_history table not found during insert; using default credits.")
+    return DEFAULT_FREE_CREDITS
+  }
 
   if (insertError) {
     const duplicateEmail = insertError.code === "23505"
@@ -146,8 +183,49 @@ export async function determineStartingCredits({
       throw insertError
     }
 
-    return 0
+    const retryCredits = await fetchEmailCreditBalance({ supabase, normalizedEmail })
+    if (typeof retryCredits === "number") {
+      return retryCredits
+    }
+
+    return DEFAULT_FREE_CREDITS
   }
 
-  return DEFAULT_FREE_CREDITS
+  return typeof insertedRow?.credits_remaining === "number"
+    ? insertedRow.credits_remaining
+    : DEFAULT_FREE_CREDITS
+}
+
+export async function updateEmailCreditHistory({
+  supabase,
+  normalizedEmail,
+  creditsRemaining,
+}: {
+  supabase: SupabaseClient
+  normalizedEmail: string
+  creditsRemaining: number
+}): Promise<void> {
+  if (DEV_MODE_OVERRIDE) {
+    return
+  }
+
+  const { error } = await supabase
+    .from("email_credit_history")
+    .upsert(
+      {
+        email: normalizedEmail,
+        credits_remaining: creditsRemaining,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "email" },
+    )
+
+  if (isMissingCreditHistoryTable(error)) {
+    console.warn("[credits] email_credit_history table not found during update; skipping sync.")
+    return
+  }
+
+  if (error) {
+    throw error
+  }
 }

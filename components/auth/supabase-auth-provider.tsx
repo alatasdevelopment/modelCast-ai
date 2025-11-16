@@ -17,6 +17,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 export function SupabaseAuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [syncedUserId, setSyncedUserId] = useState<string | null>(null)
   const supabaseClient = useMemo(() => getSupabaseClient(), [])
 
   const syncSessionCookies = (nextSession: Session | null) => {
@@ -82,6 +83,47 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       subscription.unsubscribe()
     }
   }, [supabaseClient])
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setSyncedUserId(null)
+      return
+    }
+
+    if (syncedUserId === session.user.id) {
+      return
+    }
+
+    let aborted = false
+    const syncProfile = async () => {
+      try {
+        const headers: HeadersInit = {}
+        if (session.access_token) {
+          headers.Authorization = `Bearer ${session.access_token}`
+        }
+
+        const response = await fetch("/api/auth/sync-profile", {
+          method: "POST",
+          headers,
+        })
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          console.warn("[auth] profile sync failed", payload ?? response.statusText)
+        } else if (!aborted) {
+          setSyncedUserId(session.user.id)
+        }
+      } catch (error) {
+        console.error("[auth] profile sync request failed", error)
+      }
+    }
+
+    syncProfile()
+
+    return () => {
+      aborted = true
+    }
+  }, [session?.user?.id, session?.access_token, syncedUserId])
 
   const value: AuthContextValue = {
     session,

@@ -7,7 +7,7 @@ import {
   getFashnCapabilities,
   getModelCandidates,
 } from "@/lib/fashn"
-import { determineStartingCredits, normalizeEmail } from "@/lib/signup-credits"
+import { normalizeEmail, updateEmailCreditHistory } from "@/lib/signup-credits"
 import { assemblePrompt, type PromptAssemblyResult, type PromptOptions } from "@/lib/promptUtils"
 import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 import { apiResponse } from "@/lib/api-response"
@@ -981,6 +981,16 @@ async function handleGenerateRequest(request: Request) {
     return apiResponse({ error: "Unauthorized" }, { status: 401 })
   }
 
+  let normalizedEmail: string | null = null
+  if (user.email) {
+    try {
+      normalizedEmail = normalizeEmail(user.email)
+    } catch (error) {
+      console.error("[generate] failed to normalize user email", error)
+      normalizedEmail = null
+    }
+  }
+
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .select<ProfileRow>("credits, is_pro, is_studio, plan")
@@ -997,31 +1007,13 @@ async function handleGenerateRequest(request: Request) {
   if (!profile) {
     const profileClient = adminClient ?? supabase
 
-    if (!user.email) {
+    if (!normalizedEmail) {
       return apiResponse({ success: false, error: "INVALID_EMAIL" }, { status: 400 })
-    }
-
-    let normalizedEmail: string
-    try {
-      normalizedEmail = normalizeEmail(user.email)
-    } catch {
-      return apiResponse({ success: false, error: "INVALID_EMAIL" }, { status: 400 })
-    }
-
-    let startingCredits: number
-    try {
-      startingCredits = await determineStartingCredits({
-        supabase: profileClient,
-        normalizedEmail,
-      })
-    } catch (error) {
-      console.error("[generate] failed to resolve signup credits", error)
-      return apiResponse({ success: false, error: "PROFILE_INIT_FAILED" }, { status: 500 })
     }
 
     const defaultProfile = {
       id: user.id,
-      credits: startingCredits,
+      credits: 0,
       plan: "free",
       is_pro: false,
       is_studio: false,
@@ -1196,6 +1188,19 @@ async function handleGenerateRequest(request: Request) {
     if (updateError) {
       console.error("[generate] failed to decrement credits", updateError)
       return apiResponse({ success: false, error: "Unable to update credits" }, { status: 500 })
+    }
+
+    if (normalizedEmail) {
+      try {
+        await updateEmailCreditHistory({
+          supabase: updateClient,
+          normalizedEmail,
+          creditsRemaining,
+        })
+      } catch (error) {
+        console.error("[generate] failed to update email credit history", error)
+        return apiResponse({ success: false, error: "Unable to update credits" }, { status: 500 })
+      }
     }
   }
 
