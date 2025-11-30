@@ -3,9 +3,10 @@
 import { useCallback, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Check, Loader2 } from "lucide-react"
+import { Check } from "lucide-react"
 
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
+import { UpgradeButton } from "@/components/billing/UpgradeButton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -29,6 +30,9 @@ type PricingPlan = {
   badge?: string | null
 }
 
+const PRO_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO!
+const STUDIO_PRICE_ID = process.env.NEXT_PUBLIC_STRIPE_PRICE_STUDIO!
+
 const pricingPlans: PricingPlan[] = [
   {
     id: 'free',
@@ -46,10 +50,10 @@ const pricingPlans: PricingPlan[] = [
     name: 'Pro Pack',
     price: 14,
     oldPrice: 19,
-    period: '/month',
+    period: '30 credits — one-time purchase',
     subtitle: 'Perfect for creators and small brands looking for consistent high-quality results.',
     features: [
-      '30 credits / month',
+      '30 credits included',
       'Full HD resolution',
       'Dual upload (try-on)',
       'Commercial license',
@@ -65,10 +69,10 @@ const pricingPlans: PricingPlan[] = [
     name: 'Studio Pack',
     price: 49,
     oldPrice: 69,
-    period: '/month',
+    period: '150 credits — one-time purchase',
     subtitle: 'For studios and e-commerce teams producing large volumes of content.',
     features: [
-      '150 credits / month',
+      '150 credits included',
       'Batch generation & API access',
       'All Pro features included',
       'White-label exports',
@@ -233,25 +237,22 @@ export function PricingSection() {
                     </ul>
                   </div>
 
-                  <Button
-                    variant={buttonStyle.variant}
-                    className={cn(
-                      "mt-8 w-full rounded-xl py-3 text-base font-semibold transition-all duration-200",
-                      buttonStyle.className,
-                    )}
-                    disabled={isLoading || isLoadingPlan}
-                    onClick={() => handlePlanSelect(plan)}
-                    aria-label={`Select the ${plan.name} plan`}
-                  >
-                    {isLoadingPlan ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing…
-                      </>
-                    ) : (
-                      plan.cta
-                    )}
-                  </Button>
+                  {plan.id === "free" ? (
+                    <Button
+                      variant={buttonStyle.variant}
+                      className={cn(
+                        "mt-8 w-full rounded-xl py-3 text-base font-semibold transition-all duration-200",
+                        buttonStyle.className,
+                      )}
+                      disabled={isLoading || isLoadingPlan}
+                      onClick={() => handlePlanSelect(plan)}
+                      aria-label={`Select the ${plan.name} plan`}
+                    >
+                      {plan.cta}
+                    </Button>
+                  ) : (
+                    <UpgradeButton priceId={plan.id === "pro" ? PRO_PRICE_ID : STUDIO_PRICE_ID} />
+                  )}
                 </Card>
               </motion.div>
             )
