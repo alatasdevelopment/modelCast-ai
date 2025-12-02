@@ -251,7 +251,10 @@ export function PricingSection() {
                       {plan.cta}
                     </Button>
                   ) : (
-                    <UpgradeButton priceId={plan.id === "pro" ? PRO_PRICE_ID : STUDIO_PRICE_ID} />
+                    <UpgradeButton
+                      priceId={plan.id === "pro" ? PRO_PRICE_ID : STUDIO_PRICE_ID}
+                      label={plan.cta}
+                    />
                   )}
                 </Card>
               </motion.div>
