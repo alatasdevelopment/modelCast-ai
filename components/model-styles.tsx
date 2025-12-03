@@ -1,6 +1,8 @@
 "use client"
 
 import Image from "next/image"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 type StyleImage = {
   id: string
@@ -28,6 +30,58 @@ const categories = ["Women", "Men", "Kids", "Studio", "Street", "Editorial"]
 
 export default function ModelStyles() {
   const hasImages = styleImages.length > 0
+  const listRef = useRef<HTMLDivElement>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  const scrollToIndex = useCallback((index: number) => {
+    if (!listRef.current) return
+    const nodes = Array.from(listRef.current.children) as HTMLElement[]
+    const target = nodes[index]
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" })
+    }
+  }, [])
+
+  const handleArrowClick = (direction: "prev" | "next") => {
+    setActiveIndex((current) => {
+      const next = direction === "prev" ? current - 1 : current + 1
+      const clamped = Math.min(Math.max(next, 0), styleImages.length - 1)
+      scrollToIndex(clamped)
+      return clamped
+    })
+  }
+
+  useEffect(() => {
+    const container = listRef.current
+    if (!container) return
+    let frame: number | null = null
+
+    const handleScroll = () => {
+      if (frame) cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const children = Array.from(container.children) as HTMLElement[]
+        const { scrollLeft } = container
+        let nearestIndex = 0
+        let nearestDistance = Infinity
+
+        children.forEach((child, index) => {
+          const distance = Math.abs(child.offsetLeft - scrollLeft)
+          if (distance < nearestDistance) {
+            nearestDistance = distance
+            nearestIndex = index
+          }
+        })
+
+        setActiveIndex(nearestIndex)
+      })
+    }
+
+    container.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      container.removeEventListener("scroll", handleScroll)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [])
 
   return (
     <section
@@ -51,11 +105,36 @@ export default function ModelStyles() {
 
         {hasImages ? (
           <>
-            <div className="mt-14">
+            <div className="mt-12 flex items-center justify-between">
+              <p className="text-sm text-zinc-500">Swipe or use the arrows to browse looks.</p>
+              <div className="hidden items-center gap-3 sm:flex">
+                <button
+                  type="button"
+                  aria-label="Previous style"
+                  onClick={() => handleArrowClick("prev")}
+                  disabled={activeIndex === 0}
+                  className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next style"
+                  onClick={() => handleArrowClick("next")}
+                  disabled={activeIndex === styleImages.length - 1}
+                  className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6">
               <div
                 className="flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6"
                 style={{ scrollbarWidth: "thin" }}
                 aria-label="Model style gallery"
+                ref={listRef}
               >
                 {styleImages.map((style) => (
                   <figure key={style.id} className="flex-shrink-0 snap-center">
@@ -73,6 +152,37 @@ export default function ModelStyles() {
                   </figure>
                 ))}
               </div>
+              <div className="mt-6 flex items-center justify-center gap-2 sm:hidden">
+                <button
+                  type="button"
+                  aria-label="Previous style"
+                  onClick={() => handleArrowClick("prev")}
+                  disabled={activeIndex === 0}
+                  className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next style"
+                  onClick={() => handleArrowClick("next")}
+                  disabled={activeIndex === styleImages.length - 1}
+                  className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-center gap-2">
+              {styleImages.map((style, index) => (
+                <button
+                  key={`dot-${style.id}`}
+                  type="button"
+                  aria-label={`Go to style ${index + 1}`}
+                  onClick={() => scrollToIndex(index)}
+                  className={`h-1.5 rounded-full transition-all ${activeIndex === index ? "w-6 bg-lime-300" : "w-3 bg-white/20"}`}
+                />
+              ))}
             </div>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4 text-xs font-semibold uppercase tracking-[0.45em] text-zinc-500">
               {categories.map((category) => (
