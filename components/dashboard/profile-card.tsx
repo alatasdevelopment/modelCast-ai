@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { AlertTriangle, CreditCard, Loader2, Settings, User, Lock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
+import { CreditIndicator, getCreditSummary } from '@/components/dashboard/credit-indicator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -27,27 +28,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/hooks/use-toast'
 import { getSupabaseClient } from '@/lib/supabaseClient'
 import { cn } from '@/lib/utils'
 
 interface ProfileCardProps {
   credits: number
-  maxCredits: number
   onUpgradeClick: () => void
-  onSignOut: () => Promise<void>
+  onSignOut: () => Promise<boolean>
   onClose?: () => void
   isSigningOut?: boolean
   userId: string | null
   userName?: string | null
   email?: string | null
-  devMode?: boolean
 }
 
 export function ProfileCard({
   credits,
-  maxCredits,
   onUpgradeClick,
   onSignOut,
   onClose,
@@ -55,7 +52,6 @@ export function ProfileCard({
   userId,
   userName,
   email,
-  devMode = false,
 }: ProfileCardProps) {
   const [showManageDialog, setShowManageDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -71,13 +67,8 @@ export function ProfileCard({
 
   const displayName = userName || email || 'ModelCast User'
   const displayEmail = email || 'email@modelcast.ai'
-  const creditSummary = devMode ? '∞ (Dev Mode)' : `${credits} / ${maxCredits}`
-  const creditsDisplayValue = devMode ? '∞' : `${credits} / ${maxCredits}`
-  const creditsDisplaySuffix = devMode ? '(Dev Mode)' : null
-  const statusLabel = devMode ? 'Dev sandbox' : credits > 0 ? 'Active' : 'Recharge needed'
-  const tooltipMessage = devMode
-    ? 'Dev Mode: credits are unlimited for local testing.'
-    : 'Each AI model shot costs 1 credit ($1).'
+  const creditSummary = getCreditSummary(credits)
+  const statusLabel = credits > 0 ? 'Active' : 'Recharge needed'
   const avatarInitials = useMemo(() => {
     if (!displayName) return 'MC'
     const matches = displayName.trim().split(/\s+/)
@@ -187,19 +178,7 @@ export function ProfileCard({
               <p className="text-sm text-gray-400">Manage your profile, plan, and account actions.</p>
             </div>
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-default rounded-full border border-neutral-800 bg-neutral-900/70 px-3 py-1 text-xs text-gray-400">
-                  Credits <span className="text-gray-200">{creditsDisplayValue}</span>
-                  {creditsDisplaySuffix ? <span className="ml-1 text-lime-400/70">{creditsDisplaySuffix}</span> : null}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-3 py-2 text-xs text-[var(--brand-green)]">
-                {tooltipMessage}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <CreditIndicator credits={credits} className="border-neutral-800 bg-neutral-900/70 text-gray-100" size="compact" />
         </div>
 
         <div className="flex items-start gap-3 pt-2">
@@ -226,7 +205,7 @@ export function ProfileCard({
             }}
           >
             <CreditCard className="h-4 w-4" />
-            Buy another credit ($1)
+            Buy credit
           </Button>
           <Button
             type="button"
@@ -284,7 +263,7 @@ export function ProfileCard({
 
         <div className="mt-4 grid grid-cols-1 gap-2.5 text-center md:grid-cols-3">
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-2.5">
-            <p className="text-[0.72rem] font-medium text-gray-500">Total credits</p>
+            <p className="text-[0.72rem] font-medium text-gray-500">Credits</p>
             <p className="text-sm font-medium text-gray-200">{creditSummary}</p>
           </div>
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-2.5">

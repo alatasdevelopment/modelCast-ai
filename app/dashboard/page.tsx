@@ -17,12 +17,6 @@ import { getSupabaseClient } from "@/lib/supabaseClient"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
-const PLAN_LIMITS_MAP: Record<PlanTier, number> = {
-  free: 2,
-  pro: 30,
-  studio: 150,
-}
-
 const DEV_MODE_CLIENT = process.env.NEXT_PUBLIC_DEV_MODE === "true"
 const DEV_MODE_CREDITS = 999
 
@@ -43,7 +37,7 @@ function DashboardContent() {
   const { toast } = useToast()
 
   const [plan, setPlan] = useState<PlanTier>(DEV_MODE_CLIENT ? "pro" : "free")
-  const [credits, setCredits] = useState<number>(DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP.free)
+  const [credits, setCredits] = useState<number>(DEV_MODE_CLIENT ? DEV_MODE_CREDITS : 2)
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -204,48 +198,67 @@ function DashboardContent() {
   )
 
   useEffect(() => {
-    let isMounted = true
-    const fetchProfile = async () => {
+    if (DEV_MODE_CLIENT) {
+      return
+    }
+
+    let cancelled = false
+
+    const syncProfile = async () => {
       if (!user?.id) return
 
-      const { data, error } = await supabaseClient
-        .from("profiles")
-        .select("credits, is_pro, is_studio, plan")
-        .eq("id", user.id)
-        .maybeSingle()
+      try {
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession()
 
-      if (error) {
-        console.error("[dashboard] failed to load profile", error)
-        toast({
-          title: "Profile data unavailable",
-          description: "We couldn't load your plan info. Some features may be limited.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (isMounted && data) {
-        if (DEV_MODE_CLIENT) {
-          setPlan("pro")
-          setCredits(DEV_MODE_CREDITS)
+        if (!session?.access_token) {
           return
         }
-        const detectedPlan = resolvePlanTier(data.plan ?? null, data.is_pro ?? null, data.is_studio ?? null)
-        const planLimit = PLAN_LIMITS_MAP[detectedPlan]
-        const normalizedCredits = Math.min(
-          Math.max(typeof data.credits === "number" ? data.credits : planLimit, 0),
-          planLimit,
-        )
 
-        setPlan(detectedPlan)
-        setCredits(normalizedCredits)
+        const response = await fetch("/api/auth/sync-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        })
+
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok || !payload?.ok) {
+          const message = payload?.error ?? "Unable to load profile."
+          throw new Error(message)
+        }
+
+        if (cancelled) {
+          return
+        }
+
+        if (typeof payload.plan === "string") {
+          setPlan((payload.plan as PlanTier) ?? "free")
+        }
+
+        if (typeof payload.credits === "number") {
+          setCredits(Math.max(payload.credits, 0))
+        }
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+        console.error("[dashboard] profile sync failed", error)
+        toast({
+          title: "Profile sync failed",
+          description: error instanceof Error ? error.message : "Unable to load credits.",
+          variant: "destructive",
+        })
       }
     }
 
-    void fetchProfile()
+    void syncProfile()
 
     return () => {
-      isMounted = false
+      cancelled = true
     }
   }, [supabaseClient, toast, user?.id])
 
@@ -257,8 +270,6 @@ function DashboardContent() {
   const handleGenerate = useCallback(
     async (settings: GenerationSettings): Promise<string | null> => {
       const isAdvancedMode = settings.mode === "advanced"
-
-      const planLimit = DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP[plan]
 
       if (!DEV_MODE_CLIENT && credits <= 0) {
         toast({
@@ -365,6 +376,9 @@ function DashboardContent() {
         }
 
         if (response.status === 402) {
+          if (!DEV_MODE_CLIENT && typeof payload?.credits === "number") {
+            setCredits(Math.max(payload.credits, 0))
+          }
           toast({
             title: "Out of credits",
             description: "You’ve used all your credits. Upgrade to continue generating.",
@@ -418,7 +432,9 @@ function DashboardContent() {
           return null
         }
 
-        if (!payload || payload.success !== true) {
+        const requestSuccessful = payload?.ok === true || payload?.success === true
+
+        if (!payload || !requestSuccessful) {
           toast({
             title: "Generation failed",
             description: extractErrorMessage(),
@@ -435,7 +451,6 @@ function DashboardContent() {
         latestOutputUrl = outputUrl
 
         const nextPlan = (payload?.plan as PlanTier | undefined) ?? plan
-        const nextPlanLimit = DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP[nextPlan]
 
         if (!DEV_MODE_CLIENT && payload?.plan) {
           setPlan(nextPlan)
@@ -443,10 +458,12 @@ function DashboardContent() {
 
         if (DEV_MODE_CLIENT) {
           setCredits(DEV_MODE_CREDITS)
-        } else if (payload && typeof payload.creditsRemaining === "number") {
-          setCredits(Math.min(Math.max(payload.creditsRemaining, 0), nextPlanLimit))
+        } else if (typeof payload?.credits === "number") {
+          setCredits(Math.max(payload.credits, 0))
+        } else if (typeof payload?.creditsRemaining === "number") {
+          setCredits(Math.max(payload.creditsRemaining, 0))
         } else {
-          setCredits((previous) => Math.min(Math.max(previous - 1, 0), planLimit))
+          setCredits((previous) => Math.max(previous - 1, 0))
         }
 
         if (payload?.generation) {
@@ -538,7 +555,6 @@ function DashboardContent() {
     }
   }, [router, signOut, toast])
 
-  const totalCredits = DEV_MODE_CLIENT ? DEV_MODE_CREDITS : PLAN_LIMITS_MAP[plan]
   const currentModeLabel =
     plan === "free"
       ? "Free Preview Mode"
@@ -549,13 +565,7 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050505] via-[#080808] to-[#0b0b0b] text-white">
-      <DashboardNav
-        credits={credits}
-        maxCredits={totalCredits}
-        plan={plan}
-        devMode={DEV_MODE_CLIENT}
-        onProfileClick={() => setIsProfileOpen(true)}
-      />
+      <DashboardNav credits={credits} devMode={DEV_MODE_CLIENT} onProfileClick={() => setIsProfileOpen(true)} />
 
       <main className="mx-auto mt-10 mb-12 flex w-full max-w-screen-xl flex-col gap-8 px-6 pb-6 md:flex-row md:items-start lg:gap-12 lg:px-10">
         <section className="order-1 w-full space-y-6 md:order-1 md:flex-[0.6] lg:flex-[0.58]">
@@ -597,8 +607,6 @@ function DashboardContent() {
           <div className="max-h-[80vh] overflow-y-auto pr-1">
             <ProfileCard
               credits={credits}
-              maxCredits={totalCredits}
-              devMode={DEV_MODE_CLIENT}
               onUpgradeClick={handleUpgradeClick}
               onClose={() => setIsProfileOpen(false)}
               onSignOut={handleSignOut}

@@ -1,7 +1,6 @@
 import { cookies } from "next/headers"
 
 import { apiResponse } from "@/lib/api-response"
-import { determineStartingCredits, normalizeEmail } from "@/lib/signup-credits"
 import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -17,13 +16,14 @@ if (SUPABASE_SERVICE_ROLE_KEY) {
   }
 }
 
-const unauthorized = () => apiResponse({ success: false, error: "Unauthorized" }, { status: 401 })
+const DEFAULT_STARTING_CREDITS = 2
+const unauthorized = () => apiResponse({ ok: false, error: "UNAUTHORIZED" }, { status: 401 })
 
 export async function POST(request: Request) {
   try {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       console.error("[auth] sync-profile missing Supabase configuration")
-      return apiResponse({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
+      return apiResponse({ ok: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
     }
 
     const cookieStore = await cookies()
@@ -54,103 +54,70 @@ export async function POST(request: Request) {
       return unauthorized()
     }
 
-    if (!user.email) {
-      return apiResponse(
-        {
-          success: false,
-          error: "INVALID_EMAIL",
-          message: "Valid email required to sync your profile.",
-        },
-        { status: 400 },
-      )
-    }
-
-    let normalizedEmail: string
-    try {
-      normalizedEmail = normalizeEmail(user.email)
-    } catch {
-      return apiResponse(
-        {
-          success: false,
-          error: "INVALID_EMAIL",
-          message: "Valid email required to sync your profile.",
-        },
-        { status: 400 },
-      )
-    }
-
     const profileClient = adminClient ?? supabase
-    let credits: number
-    try {
-      credits = await determineStartingCredits({
-        supabase: profileClient,
-        normalizedEmail,
-      })
-    } catch (error) {
-      console.error("[auth] sync-profile credit lookup failed", error)
-      return apiResponse({ success: false, error: "EMAIL_CREDIT_LOOKUP_FAILED" }, { status: 500 })
-    }
-
-    const { data: existingProfile, error: profileLookupError } = await profileClient
+    const { data: profile, error: profileError } = await profileClient
       .from("profiles")
-      .select("id")
+      .select("id, credits, plan, is_pro, is_studio")
       .eq("id", user.id)
       .maybeSingle()
 
-    if (profileLookupError && profileLookupError.code !== "PGRST116") {
-      console.error("[auth] sync-profile profile lookup failed", profileLookupError)
-      return apiResponse({ success: false, error: "PROFILE_SYNC_FAILED" }, { status: 500 })
+    if (profileError && profileError.code !== "PGRST116") {
+      console.error("[auth] sync-profile lookup failed", profileError)
+      return apiResponse({ ok: false, error: "PROFILE_SYNC_FAILED" }, { status: 500 })
     }
 
-    if (existingProfile) {
-      const { error: updateError } = await profileClient.from("profiles").update({ credits }).eq("id", user.id)
-      if (updateError) {
-        console.error("[auth] sync-profile profile update failed", updateError)
-        return apiResponse({ success: false, error: "PROFILE_SYNC_FAILED" }, { status: 500 })
-      }
-    } else {
-      const defaultProfile = {
+    const resolvePlan = (input?: { plan?: string | null; is_pro?: boolean | null; is_studio?: boolean | null }) => {
+      if (!input) return "free"
+      const normalized = typeof input.plan === "string" ? input.plan.toLowerCase() : null
+      if (input.is_studio || normalized === "studio") return "studio"
+      if (input.is_pro || normalized === "pro") return "pro"
+      return "free"
+    }
+
+    if (!profile) {
+      const insertPayload = {
         id: user.id,
-        credits,
+        credits: DEFAULT_STARTING_CREDITS,
         plan: "free",
         is_pro: false,
         is_studio: false,
       }
 
-      const { error: insertError } = await profileClient.from("profiles").insert(defaultProfile)
-      if (insertError) {
-        if (insertError.code === "23505") {
-          const { error: conflictUpdateError } = await profileClient
-            .from("profiles")
-            .update({ credits })
-            .eq("id", user.id)
+      const { data: insertedProfile, error: insertError } = await profileClient
+        .from("profiles")
+        .upsert(insertPayload, { onConflict: "id" })
+        .select("credits, plan")
+        .single()
 
-          if (conflictUpdateError) {
-            console.error("[auth] sync-profile conflict update failed", conflictUpdateError)
-            return apiResponse({ success: false, error: "PROFILE_SYNC_FAILED" }, { status: 500 })
-          }
-        } else {
-          console.error("[auth] sync-profile profile create failed", insertError)
-          return apiResponse({ success: false, error: "PROFILE_SYNC_FAILED" }, { status: 500 })
-        }
+      if (insertError) {
+        console.error("[auth] sync-profile failed to initialize profile", insertError)
+        return apiResponse({ ok: false, error: "PROFILE_SYNC_FAILED" }, { status: 500 })
       }
+
+      const credits = typeof insertedProfile?.credits === "number" ? insertedProfile.credits : DEFAULT_STARTING_CREDITS
+      const plan = typeof insertedProfile?.plan === "string" ? insertedProfile.plan : "free"
+
+      return apiResponse({ ok: true, credits, plan })
     }
 
-    return apiResponse({ success: true, credits })
+    const credits = Math.max(typeof profile.credits === "number" ? profile.credits : DEFAULT_STARTING_CREDITS, 0)
+    const plan = resolvePlan(profile)
+
+    return apiResponse({ ok: true, credits, plan })
   } catch (error) {
     console.error("[ERROR] sync-profile route failure:", error)
-    return apiResponse({ success: false, error: "UNEXPECTED_ERROR" }, { status: 500 })
+    return apiResponse({ ok: false, error: "UNEXPECTED_ERROR" }, { status: 500 })
   }
 }
 
 export function GET() {
-  return apiResponse({ success: false, error: "Method Not Allowed" }, { status: 405 })
+  return apiResponse({ ok: false, error: "METHOD_NOT_ALLOWED" }, { status: 405 })
 }
 
 export function PUT() {
-  return apiResponse({ success: false, error: "Method Not Allowed" }, { status: 405 })
+  return apiResponse({ ok: false, error: "METHOD_NOT_ALLOWED" }, { status: 405 })
 }
 
 export function DELETE() {
-  return apiResponse({ success: false, error: "Method Not Allowed" }, { status: 405 })
+  return apiResponse({ ok: false, error: "METHOD_NOT_ALLOWED" }, { status: 405 })
 }

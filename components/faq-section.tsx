@@ -35,7 +35,7 @@ export function FAQSection() {
     {
       question: "How much does it cost?",
       answer:
-        "You can start free with 2 credits to test ModelCast. Upgrade anytime: Pro Pack — $14/month for 30 credits and HD outputs. Studio Pack — $49/month for 150 credits and API access. No hidden fees or contracts — cancel anytime.",
+        "You can start free with 2 credits to test ModelCast. Upgrade anytime: Pro Pack — $14/month for 30 credits and HD outputs. Studio Pack — $49/month for 150 credits. No hidden fees or contracts — cancel anytime.",
     },
   ]
 

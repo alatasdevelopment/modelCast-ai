@@ -2,39 +2,16 @@
 
 import Link from 'next/link'
 
+import { CreditIndicator } from '@/components/dashboard/credit-indicator'
 import { Logo } from '@/components/logo'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import type { PlanTier } from '@/components/dashboard/types'
 
 interface DashboardNavProps {
   credits: number
-  maxCredits: number
   onProfileClick: () => void
-  plan?: PlanTier
   devMode?: boolean
 }
 
-export function DashboardNav({
-  credits,
-  maxCredits,
-  onProfileClick,
-  plan = 'free',
-  devMode = false,
-}: DashboardNavProps) {
-  const planLabel = devMode
-    ? 'Dev Mode · unlimited credits'
-    : plan === 'free'
-        ? `Free plan · ${maxCredits} preview credits`
-        : `${plan === 'pro' ? 'Pro' : 'Studio'} plan · ${maxCredits} credits / month`
-
-  const creditsLabel = devMode ? '∞ (Dev Mode)' : `${credits} / ${maxCredits}`
-  const statusDotClass = devMode || credits > 0 ? 'bg-[var(--brand-green)]' : 'bg-yellow-400'
-
+export function DashboardNav({ credits, onProfileClick, devMode = false }: DashboardNavProps) {
   return (
     <nav className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0b]/90 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-screen-xl flex-col items-start justify-between gap-4 px-6 py-4 sm:h-20 sm:flex-row sm:items-center sm:gap-6">
@@ -43,49 +20,14 @@ export function DashboardNav({
           <span className="text-lg font-semibold tracking-[0.035em]">ModelCast</span>
         </Link>
 
-        <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto sm:flex-nowrap sm:gap-5">
-          {devMode && (
-            <span className="flex items-center gap-2 rounded-full border border-white/18 bg-white/[0.08] px-3 py-1 text-xs font-semibold tracking-[0.18em] text-neutral-100">
-              <span aria-hidden>🧪</span>
-              Dev Mode Active
-            </span>
-          )}
-          <TooltipProvider delayDuration={150}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="flex flex-shrink-0 items-center gap-3 rounded-full border border-white/25 bg-white/[0.04] px-3 py-1.5 text-left text-xs tracking-[0.02em] text-neutral-200 backdrop-blur transition-colors hover:border-white/40 hover:text-neutral-50 sm:px-4 sm:py-2 sm:text-sm md:text-base"
-                  aria-label="Available credits"
-                >
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${statusDotClass}`}
-                  />
-                  <div className="flex flex-col items-center leading-tight text-center">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--brand-green)] leading-none">
-                      Credits
-                    </span>
-                    <span className="text-[11px] font-medium text-neutral-200 leading-none">
-                      {creditsLabel}
-                    </span>
-                  </div>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="border-white/10 bg-[#101010]/95 px-4 py-3 text-[var(--brand-green)]">
-                <div className="space-y-1 text-xs">
-                  <p>{planLabel}</p>
-                  <p>{devMode ? 'Unlimited dev credits available.' : `${credits} / ${maxCredits} credits remaining.`}</p>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+        <div className="ml-auto flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+          <CreditIndicator credits={credits} devMode={devMode} className="border-white/20 bg-white/[0.06]" />
           <button
             type="button"
             onClick={onProfileClick}
-            className="group relative flex-shrink-0 text-sm font-medium uppercase tracking-[0.18em] text-neutral-300 transition hover:text-[var(--brand-green)]"
+            className="flex items-center justify-center gap-2 rounded-full border border-white/15 px-4 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-neutral-200 transition hover:border-[var(--brand-green)] hover:text-white"
           >
             Profile
-            <span className="absolute -bottom-1 left-0 right-0 h-[1.5px] origin-center scale-x-0 bg-gradient-to-r from-transparent via-[var(--brand-green)] to-transparent transition-transform duration-200 ease-out group-hover:scale-x-100" />
           </button>
         </div>
       </div>

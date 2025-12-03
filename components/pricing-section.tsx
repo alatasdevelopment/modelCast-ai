@@ -137,18 +137,24 @@ export function PricingSection() {
           throw new Error('Your session expired. Please sign in again.')
         }
 
-        const response = await fetch('/api/billing/checkout', {
+        const priceId = plan.id === 'pro' ? PRO_PRICE_ID : plan.id === 'studio' ? STUDIO_PRICE_ID : null
+
+        if (!priceId) {
+          throw new Error('Selected plan is unavailable. Please try again later.')
+        }
+
+        const response = await fetch('/api/billing/create-session', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ planId: plan.id }),
+          body: JSON.stringify({ priceId }),
         })
 
-        const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null
+        const payload = (await response.json().catch(() => null)) as { ok?: boolean; url?: string; error?: string } | null
 
-        if (!response.ok || !payload?.url) {
+        if (!response.ok || typeof payload?.url !== 'string') {
           const message = payload?.error ?? 'Checkout session could not be created.'
           throw new Error(message)
         }

@@ -39,23 +39,18 @@ export function UpgradeButton({ priceId, label = "Upgrade now" }: UpgradeButtonP
         throw new Error("Session expired. Please sign in again.")
       }
 
-      const baseUrl = window.location.origin
       const response = await fetch("/api/billing/create-session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          priceId,
-          successUrl: `${baseUrl}/billing/success`,
-          cancelUrl: `${baseUrl}/billing/cancel`,
-        }),
+        body: JSON.stringify({ priceId }),
       })
 
       const payload = (await response.json().catch(() => null)) as { ok?: boolean; url?: string; error?: string } | null
 
-      if (!response.ok || !payload?.url) {
+      if (!response.ok || typeof payload?.url !== "string") {
         const message = payload?.error ?? "Unable to start checkout."
         throw new Error(message)
       }

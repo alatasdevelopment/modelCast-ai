@@ -7,20 +7,13 @@ import {
   getFashnCapabilities,
   getModelCandidates,
 } from "@/lib/fashn"
-import { normalizeEmail, updateEmailCreditHistory } from "@/lib/signup-credits"
 import { assemblePrompt, type PromptAssemblyResult, type PromptOptions } from "@/lib/promptUtils"
 import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 import { apiResponse } from "@/lib/api-response"
 
-const PLAN_CREDIT_LIMITS = {
-  free: 2,
-  pro: 30,
-  studio: 150,
-} as const
+type PlanTier = "free" | "pro" | "studio"
 
-type PlanId = keyof typeof PLAN_CREDIT_LIMITS
-
-const resolvePlan = (profile: { plan?: string | null; is_pro?: boolean | null; is_studio?: boolean | null }): PlanId => {
+const resolvePlan = (profile: { plan?: string | null; is_pro?: boolean | null; is_studio?: boolean | null }): PlanTier => {
   const rawPlan = typeof profile.plan === "string" ? profile.plan.toLowerCase() : null
   if (rawPlan === "studio") return "studio"
   if (rawPlan === "pro") return "pro"
@@ -946,9 +939,9 @@ async function handleGenerateRequest(request: Request) {
   if (!FASHN_ENABLED) {
     logInfo("[generate] Mock mode active — returning placeholder image.")
     return apiResponse({
-      success: true,
+      ok: true,
       outputUrl: MOCK_OUTPUT_URL,
-      creditsRemaining: 999,
+      credits: 999,
     })
   }
 
@@ -981,16 +974,6 @@ async function handleGenerateRequest(request: Request) {
     return apiResponse({ error: "Unauthorized" }, { status: 401 })
   }
 
-  let normalizedEmail: string | null = null
-  if (user.email) {
-    try {
-      normalizedEmail = normalizeEmail(user.email)
-    } catch (error) {
-      console.error("[generate] failed to normalize user email", error)
-      normalizedEmail = null
-    }
-  }
-
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .select<ProfileRow>("credits, is_pro, is_studio, plan")
@@ -1007,13 +990,9 @@ async function handleGenerateRequest(request: Request) {
   if (!profile) {
     const profileClient = adminClient ?? supabase
 
-    if (!normalizedEmail) {
-      return apiResponse({ success: false, error: "INVALID_EMAIL" }, { status: 400 })
-    }
-
     const defaultProfile = {
       id: user.id,
-      credits: 0,
+      credits: 2,
       plan: "free",
       is_pro: false,
       is_studio: false,
@@ -1049,9 +1028,8 @@ async function handleGenerateRequest(request: Request) {
   }
 
   const plan = resolvePlan(profile)
-  const planCreditLimit = DEV_MODE ? 999 : PLAN_CREDIT_LIMITS[plan]
   const rawCredits = typeof profile.credits === "number" ? profile.credits : 0
-  const normalizedCredits = DEV_MODE ? planCreditLimit : Math.min(Math.max(rawCredits, 0), planCreditLimit)
+  const availableCredits = DEV_MODE ? 999 : Math.max(rawCredits, 0)
   const isProTier = plan !== "free"
 
   if (!isProTier && (parsedPayload.modelImageUrl || parsedPayload.mode === "advanced")) {
@@ -1062,8 +1040,8 @@ async function handleGenerateRequest(request: Request) {
     return apiResponse({ error: "Model image required for advanced mode." }, { status: 400 })
   }
 
-  if (!DEV_MODE && normalizedCredits <= 0) {
-    return apiResponse({ error: "Out of credits" }, { status: 402 })
+  if (!DEV_MODE && availableCredits <= 0) {
+    return apiResponse({ ok: false, error: "NO_CREDITS", credits: 0 }, { status: 402 })
   }
 
   let fashnResult: FashnCallResult
@@ -1177,31 +1155,23 @@ async function handleGenerateRequest(request: Request) {
   let creditsRemaining: number
 
   if (DEV_MODE) {
-    creditsRemaining = planCreditLimit
+    creditsRemaining = availableCredits
   } else {
-    creditsRemaining = Math.max(normalizedCredits - 1, 0)
-    const { error: updateError } = await updateClient
+    const decremented = Math.max(availableCredits - 1, 0)
+    const { data: updatedProfile, error: updateError } = await updateClient
       .from("profiles")
-      .update({ credits: creditsRemaining })
+      .update({ credits: decremented })
       .eq("id", user.id)
+      .select("credits")
+      .single()
 
     if (updateError) {
       console.error("[generate] failed to decrement credits", updateError)
-      return apiResponse({ success: false, error: "Unable to update credits" }, { status: 500 })
+      return apiResponse({ ok: false, error: "CREDIT_DECREMENT_FAILED" }, { status: 500 })
     }
 
-    if (normalizedEmail) {
-      try {
-        await updateEmailCreditHistory({
-          supabase: updateClient,
-          normalizedEmail,
-          creditsRemaining,
-        })
-      } catch (error) {
-        console.error("[generate] failed to update email credit history", error)
-        return apiResponse({ success: false, error: "Unable to update credits" }, { status: 500 })
-      }
-    }
+    creditsRemaining =
+      typeof updatedProfile?.credits === "number" ? Math.max(updatedProfile.credits, 0) : decremented
   }
 
   const previewModeActive = !isProTier
@@ -1303,10 +1273,9 @@ async function handleGenerateRequest(request: Request) {
   }
 
   return apiResponse({
-    success: true,
+    ok: true,
     outputUrl: finalOutputUrl,
-    creditsRemaining: fashnResult.creditsRemaining ?? creditsRemaining,
-    totalCredits: planCreditLimit,
+    credits: creditsRemaining,
     plan,
     debug: aspectDebug ?? undefined,
     data: finalOutputUrl,
