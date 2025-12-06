@@ -73,8 +73,10 @@ const pricingPlans: PricingPlan[] = [
     subtitle: 'For studios and e-commerce teams producing large volumes of content.',
     features: [
       '150 credits included',
-      'Batch generation & API access',
-      'All Pro features included',
+      'Full HD resolution',
+      'Dual upload (try-on)',
+      'Commercial license',
+      'Priority generation',
       'White-label exports',
     ],
     cta: 'Upgrade to Studio',
