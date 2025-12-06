@@ -609,7 +609,9 @@ const callFashnApi = async ({ modelImageUrl, garmentImageUrl, options, formSetti
   let resolvedCapabilities: FashnCapabilitySummary | null = null
 
   for (const modelName of modelCandidates) {
-    console.log(`[DEBUG] Trying FASHN model: ${modelName}`)
+    if (!isProduction) {
+      console.log(`[DEBUG] Trying FASHN model: ${modelName}`)
+    }
     const attemptWarnings: string[] = []
     const recordWarning = (message: string) => {
       console.warn(message)
@@ -1044,11 +1046,54 @@ async function handleGenerateRequest(request: Request) {
     return apiResponse({ ok: false, error: "NO_CREDITS", credits: 0 }, { status: 402 })
   }
 
+  const updateClient = adminClient ?? supabase
+  
+  // 1. Deduct credit upfront to prevent race conditions during long generation
+  if (!DEV_MODE) {
+    const { data: deductedProfile, error: deductError } = await updateClient
+      .rpc("decrement_credits", { p_user_id: user.id, amount: 1 }) // Try RPC first for atomicity
+      .maybeSingle()
+
+    // Fallback if RPC missing: optimistic check-and-update
+    if (deductError) {
+       // If RPC fails (likely missing), fall back to standard update but re-check balance
+       const { data: freshProfile } = await updateClient.from("profiles").select("credits").eq("id", user.id).single()
+       const currentBalance = freshProfile?.credits ?? 0
+       if (currentBalance < 1) {
+          return apiResponse({ ok: false, error: "NO_CREDITS", credits: 0 }, { status: 402 })
+       }
+       
+       const { error: manualDeductError } = await updateClient
+         .from("profiles")
+         .update({ credits: currentBalance - 1 })
+         .eq("id", user.id)
+       
+       if (manualDeductError) {
+         console.error("[generate] manual credit deduction failed", manualDeductError)
+         return apiResponse({ success: false, error: "CREDIT_TRANSACTION_FAILED" }, { status: 500 })
+       }
+    }
+  }
+
   let fashnResult: FashnCallResult
 
   try {
     fashnResult = await callFashnApi(parsedPayload)
   } catch (error) {
+    // Refund logic on failure
+    if (!DEV_MODE) {
+        console.warn("[generate] Fashn failed, refunding credit...")
+        const { error: refundError } = await updateClient.rpc("increment_credits", { p_user_id: user.id, amount: 1 })
+        
+        if (refundError) {
+             // Fallback manual refund
+             const { data: p } = await updateClient.from("profiles").select("credits").eq("id", user.id).single()
+             if (p) {
+                 await updateClient.from("profiles").update({ credits: (p.credits ?? 0) + 1 }).eq("id", user.id)
+             }
+        }
+    }
+
     const message = error instanceof Error ? error.message ?? String(error) : String(error)
     if (typeof message === "string" && message.includes("Failed to detect body pose")) {
       console.warn(
@@ -1151,28 +1196,8 @@ async function handleGenerateRequest(request: Request) {
     }
   }
 
-  const updateClient = adminClient ?? supabase
-  let creditsRemaining: number
-
-  if (DEV_MODE) {
-    creditsRemaining = availableCredits
-  } else {
-    const decremented = Math.max(availableCredits - 1, 0)
-    const { data: updatedProfile, error: updateError } = await updateClient
-      .from("profiles")
-      .update({ credits: decremented })
-      .eq("id", user.id)
-      .select("credits")
-      .single()
-
-    if (updateError) {
-      console.error("[generate] failed to decrement credits", updateError)
-      return apiResponse({ ok: false, error: "CREDIT_DECREMENT_FAILED" }, { status: 500 })
-    }
-
-    creditsRemaining =
-      typeof updatedProfile?.credits === "number" ? Math.max(updatedProfile.credits, 0) : decremented
-  }
+  // Credits were deducted before generation started
+  const creditsRemaining = DEV_MODE ? 999 : Math.max(availableCredits - 1, 0)
 
   const previewModeActive = !isProTier
   // TODO: Revisit watermark handling to return true preview-quality assets for non-pro tiers.

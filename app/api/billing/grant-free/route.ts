@@ -1,25 +1,15 @@
 import { cookies } from "next/headers"
 
-import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 import { apiResponse } from "@/lib/api-response"
+import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let adminClient: ReturnType<typeof getSupabaseAdminClient> | null = null
-if (SUPABASE_SERVICE_ROLE_KEY) {
-  try {
-    adminClient = getSupabaseAdminClient()
-  } catch (error) {
-    console.warn("[billing] unable to initialize admin client", error)
-  }
-}
 
 export async function POST(request: Request) {
   try {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.error("[billing] missing Supabase configuration")
+      console.error("[billing] grant-free missing Supabase configuration")
       return apiResponse({ success: false, error: "SERVER_CONFIGURATION_ERROR" }, { status: 500 })
     }
 
@@ -37,7 +27,6 @@ export async function POST(request: Request) {
     }
 
     if (!accessToken) {
-      console.warn("[billing] grant-free missing access token")
       return apiResponse({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
@@ -54,14 +43,23 @@ export async function POST(request: Request) {
 
     const userId = user.id
 
-    const { data: profile, error: profileError } = await supabase
+    // Use admin client for reliable profile lookup/update to avoid RLS edge cases during billing ops
+    let adminClient
+    try {
+      adminClient = getSupabaseAdminClient()
+    } catch (error) {
+      console.error("[billing] grant-free admin client init failed", error)
+      return apiResponse({ success: false, error: "SERVER_ERROR" }, { status: 500 })
+    }
+
+    const { data: profile, error: profileError } = await adminClient
       .from("profiles")
       .select("credits, is_pro, plan")
       .eq("id", userId)
       .maybeSingle()
 
     if (profileError) {
-      console.error("[billing] failed to load profile before granting free credits", profileError)
+      console.error("[billing] failed to load profile", profileError)
       return apiResponse({ success: false, error: "PROFILE_LOOKUP_FAILED" }, { status: 500 })
     }
 
@@ -71,21 +69,22 @@ export async function POST(request: Request) {
 
     if (profile.is_pro) {
       return apiResponse(
-        { success: false, error: "Pro members already have unlimited access to HD generations." },
+        { success: false, error: "Pro members already have unlimited access." },
         { status: 400 },
       )
     }
 
     const currentCredits = typeof profile.credits === "number" ? profile.credits : 0
+    
+    // Strict check: Only grant if strictly less than 2
     if (currentCredits >= 2) {
       return apiResponse({ success: true, credits: currentCredits })
     }
 
     const targetCredits = 2
-    const client = adminClient ?? supabase
-    const { data: updatedProfile, error: updateError } = await client
+    const { data: updatedProfile, error: updateError } = await adminClient
       .from("profiles")
-      .update({ credits: targetCredits, is_pro: false, is_studio: false, plan: "free" })
+      .update({ credits: targetCredits, plan: "free" }) // Ensure plan stays/becomes free
       .eq("id", userId)
       .select("credits")
       .maybeSingle()

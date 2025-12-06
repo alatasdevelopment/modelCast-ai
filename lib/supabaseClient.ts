@@ -218,7 +218,7 @@ export async function fetchGenerationsSafe({
   }
 
   if (typeof window !== "undefined") {
-    window.alert(
+    console.error(
       "⚠️ Database setup missing: please run get_generations_safe() and generations_view SQL in Supabase.",
     )
   }

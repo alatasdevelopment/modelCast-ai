@@ -316,9 +316,7 @@ export function ModelGenerator({
   }
 
   useEffect(() => {
-    if (modelSlotEnabled) {
-      console.log('[DEBUG] Aspect ratio disabled (try-on mode)')
-    } else {
+    if (!modelSlotEnabled) {
       setPoseGuidanceVisible(false)
       setPoseExamplesOpen(false)
     }
@@ -328,9 +326,6 @@ export function ModelGenerator({
 
   useEffect(() => {
     if (previousTryOnRef.current !== tryOnModeActive) {
-      if (tryOnModeActive) {
-        console.log('[DEBUG] Try-On mode detected → style/background controls disabled.')
-      }
       previousTryOnRef.current = tryOnModeActive
     }
   }, [tryOnModeActive])

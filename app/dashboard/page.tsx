@@ -13,7 +13,7 @@ import type { GeneratedImage, PlanTier } from "@/components/dashboard/types"
 import { SessionGuard } from "@/components/auth/session-guard"
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
 import { useToast } from "@/hooks/use-toast"
-import { getSupabaseClient } from "@/lib/supabaseClient"
+import { getSupabaseClient, fetchGenerationsSafe, type GenerationRow } from "@/lib/supabaseClient"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
@@ -43,17 +43,6 @@ function DashboardContent() {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const supabaseClient = useMemo(() => getSupabaseClient(), [])
-
-  type GenerationRow = {
-    id: string
-    image_url: string
-    plan: string | null
-    created_at: string | null
-    metadata?: {
-      form?: Record<string, unknown> | null
-      delivery?: string | null
-    } | null
-  }
 
   const mapGenerationRow = useCallback(
     (row: GenerationRow): GeneratedImage => {
@@ -105,42 +94,21 @@ function DashboardContent() {
           return
         }
 
-      targetUserId = sessionUser.id
-    }
+        targetUserId = sessionUser.id
+      }
 
-  if (!targetUserId) {
-    return
-  }
+      if (!targetUserId) {
+        return
+      }
 
-      const { data, error } = await supabaseClient
-        .from("generations")
-        .select<GenerationRow>("id, image_url, plan, created_at, metadata")
-        .eq("user_id", targetUserId)
-        .order("created_at", { ascending: false, nullsLast: true })
-        .limit(20)
-
-      let finalRows = (data as GenerationRow[] | null) ?? null
-      let rpcData: GenerationRow[] | null = null
+      const { data: finalRows, error } = await fetchGenerationsSafe({
+        supabase: supabaseClient,
+        userId: targetUserId,
+      })
 
       if (error) {
         console.error("[dashboard] failed to load generations", error)
-        const {
-          data: rpcResponseData,
-          error: rpcError,
-        } = await supabaseClient.rpc<GenerationRow[] | null>("get_generations_safe", {
-          p_user_id: targetUserId,
-        })
-
-        if (rpcError) {
-          console.error("[dashboard] RPC fallback failed", rpcError)
-          return
-        }
-
-        if (rpcResponseData) {
-          console.warn("[FALLBACK] Generations loaded via RPC fallback.")
-          rpcData = rpcResponseData
-          finalRows = rpcData
-        }
+        return
       }
 
       if (finalRows) {
