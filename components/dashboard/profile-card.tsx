@@ -169,7 +169,7 @@ export function ProfileCard({
       <Card className="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-lg sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-green-muted)]">
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--brand-green-muted)]">
               <User className="h-4 w-4 text-[var(--brand-green)]" />
             </span>
             <div>
