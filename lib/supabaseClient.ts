@@ -1,16 +1,22 @@
 import { createClient, type PostgrestError, type SupabaseClient } from "@supabase/supabase-js"
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+function requireEnvVar(value: string | undefined, message: string): string {
+  if (!value) {
+    throw new Error(message)
+  }
+
+  return value
+}
+
+const SUPABASE_URL = requireEnvVar(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  "Missing NEXT_PUBLIC_SUPABASE_URL environment variable.",
+)
+const SUPABASE_ANON_KEY = requireEnvVar(
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  "Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.",
+)
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!SUPABASE_URL) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.")
-}
-
-if (!SUPABASE_ANON_KEY) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.")
-}
 
 if (
   SUPABASE_URL.includes("<") ||
@@ -77,11 +83,13 @@ export function getSupabaseServerClient(req?: Request, accessToken?: string | nu
 
 // Admin client (service role)
 export function getSupabaseAdminClient(): SupabaseClient {
-  if (!SUPABASE_SERVICE_KEY) {
+  const serviceKey = SUPABASE_SERVICE_KEY
+
+  if (!serviceKey) {
     throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable.")
   }
 
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  return createClient(SUPABASE_URL, serviceKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
