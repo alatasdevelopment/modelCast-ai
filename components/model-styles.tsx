@@ -23,7 +23,6 @@ const styleImages: StyleImage[] = [
   { id: "studio", src: "/results/studio.png", width: 864, height: 1184, alt: "Studio portrait" },
   { id: "old-woman-studio", src: "/results/old_worman_studio.png", width: 864, height: 1184, alt: "Classic studio womenswear" },
   { id: "editorial-2", src: "/results/editorial_2.png", width: 864, height: 1184, alt: "Monochrome editorial pose" },
-  { id: "modelcast-output", src: "/results/modelcast_output.png", width: 1024, height: 1024, alt: "ModelCast signature grid" },
 ]
 
 const categories = ["Women", "Men", "Kids", "Studio", "Street", "Editorial"]
