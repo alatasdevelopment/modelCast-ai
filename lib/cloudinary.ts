@@ -12,7 +12,15 @@ export class CloudinaryUploadError extends Error {
 }
 
 const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+const DEFAULT_UPLOAD_FOLDER = 'modelcast/uploads'
+
+type SignedUploadConfig = {
+  timestamp: number
+  signature: string
+  apiKey: string
+  cloudName: string
+  folder: string
+}
 
 const parseCloudinaryErrorMessage = (rawBody: string | null, fallback: string) => {
   if (!rawBody) return fallback
@@ -26,15 +34,70 @@ const parseCloudinaryErrorMessage = (rawBody: string | null, fallback: string) =
   return rawBody
 }
 
-export async function uploadToCloudinary(file: File): Promise<CloudinaryUploadResult> {
-  if (!cloudName || !uploadPreset) {
-    throw new Error('Cloudinary is not configured. Check NEXT_PUBLIC_CLOUDINARY_* env vars.')
+const resolveFolder = (folder?: string) => {
+  if (typeof folder !== 'string') return DEFAULT_UPLOAD_FOLDER
+  const trimmed = folder.trim()
+  return trimmed || DEFAULT_UPLOAD_FOLDER
+}
+
+const requestSignedUploadConfig = async (folder?: string): Promise<SignedUploadConfig> => {
+  const normalizedFolder = resolveFolder(folder)
+  let response: Response
+  try {
+    response = await fetch('/api/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ folder: normalizedFolder }),
+    })
+  } catch (error) {
+    throw new CloudinaryUploadError(
+      error instanceof Error ? error.message : 'Failed to reach upload signer.',
+    )
   }
 
-  const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new CloudinaryUploadError(
+      parseCloudinaryErrorMessage(errorText, 'Unable to secure Cloudinary upload.'),
+    )
+  }
+
+  let data: SignedUploadConfig
+  try {
+    data = (await response.json()) as SignedUploadConfig
+  } catch {
+    throw new CloudinaryUploadError('Invalid response from upload signer.')
+  }
+
+  if (
+    typeof data.timestamp !== 'number' ||
+    typeof data.signature !== 'string' ||
+    typeof data.apiKey !== 'string' ||
+    typeof data.cloudName !== 'string' ||
+    typeof data.folder !== 'string'
+  ) {
+    throw new CloudinaryUploadError('Incomplete upload signature returned by server.')
+  }
+
+  return data
+}
+
+export async function uploadToCloudinary(
+  file: File,
+  options: { folder?: string } = {},
+): Promise<CloudinaryUploadResult> {
+  const { folder } = options
+  const signedConfig = await requestSignedUploadConfig(folder)
+
+  const endpoint = `https://api.cloudinary.com/v1_1/${signedConfig.cloudName}/image/upload`
   const formData = new FormData()
   formData.append('file', file)
-  formData.append('upload_preset', uploadPreset)
+  formData.append('api_key', signedConfig.apiKey)
+  formData.append('timestamp', String(signedConfig.timestamp))
+  formData.append('signature', signedConfig.signature)
+  formData.append('folder', signedConfig.folder)
 
   const response = await fetch(endpoint, {
     method: 'POST',
