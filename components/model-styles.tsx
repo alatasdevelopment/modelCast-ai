@@ -87,7 +87,7 @@ export default function ModelStyles() {
       id="model-styles"
       role="region"
       aria-labelledby="model-styles-heading"
-      className="relative overflow-hidden bg-black py-24 sm:py-28"
+      className="relative overflow-hidden bg-black py-16 sm:py-20 lg:py-24"
     >
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(163,255,89,0.08),transparent_55%)]" />
       <div className="container mx-auto max-w-6xl px-6">
@@ -104,7 +104,7 @@ export default function ModelStyles() {
 
         {hasImages ? (
           <>
-            <div className="mt-12 flex items-center justify-between">
+            <div className="mt-10 flex items-center justify-between">
               <p className="text-sm text-zinc-500">Swipe or use the arrows to browse looks.</p>
               <div className="hidden items-center gap-3 sm:flex">
                 <button

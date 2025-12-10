@@ -23,7 +23,7 @@ export default function Hero() {
       id="hero"
       role="banner"
       aria-labelledby="hero-heading"
-      className="relative overflow-hidden bg-black py-12 text-center md:py-24"
+      className="relative overflow-hidden bg-black py-10 text-center sm:py-14 md:py-20"
     >
       <div className="absolute inset-0 -z-10 overflow-hidden">
         <motion.div
@@ -40,13 +40,13 @@ export default function Hero() {
         <div className="pointer-events-none absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,rgba(255,255,255,0.14)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.14)_1px,transparent_1px)] bg-[size:180px_140px]" />
       </div>
 
-      <div className="relative mx-auto flex max-w-4xl flex-col items-center px-6 text-center sm:px-8">
+      <div className="relative mx-auto flex max-w-5xl flex-col items-center px-6 text-center sm:px-8">
         <motion.p
           custom={0.1}
           variants={heroVariants}
           initial="hidden"
           animate="visible"
-          className="mb-2 text-xs uppercase tracking-[0.32em] text-lime-400/80 md:text-sm"
+          className="mb-3 text-xs uppercase tracking-[0.32em] text-lime-400/80 md:text-sm"
         >
           AI-Powered Visuals for Fashion Creators
         </motion.p>
@@ -58,7 +58,7 @@ export default function Hero() {
           initial="hidden"
           animate="visible"
           className={cn(
-            "mb-4 text-5xl font-black leading-[1.1] text-white md:text-6xl",
+            "mb-5 text-5xl font-black leading-[1.1] text-white md:text-6xl",
             "bg-gradient-to-r from-lime-300 via-white to-lime-200 bg-clip-text text-transparent",
             geist.className,
           )}
@@ -71,7 +71,7 @@ export default function Hero() {
           variants={heroVariants}
           initial="hidden"
           animate="visible"
-          className="mb-7 max-w-xl text-base text-gray-400 sm:text-lg"
+          className="mb-7 max-w-2xl text-base text-gray-400 sm:text-lg"
         >
           Turn simple product images into studio-grade model visuals — no photoshoots, no models, no limits. Free to
           try.
