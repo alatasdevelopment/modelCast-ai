@@ -195,7 +195,7 @@ export function ProfileCard({
 
         <Separator className="my-3 border-white/10" />
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Button
             type="button"
             className="w-full justify-start gap-2 rounded-xl bg-lime-400 py-3 text-sm font-medium text-black transition hover:bg-lime-300"
@@ -261,7 +261,7 @@ export function ProfileCard({
           {passwordSuccess ? <p className="text-sm text-lime-400">Password updated successfully.</p> : null}
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-2.5 text-center md:grid-cols-3">
+        <div className="mt-2 grid grid-cols-1 gap-2 text-center md:grid-cols-3">
           <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 p-2.5">
             <p className="text-[0.72rem] font-medium text-gray-500">Credits</p>
             <p className="text-sm font-medium text-gray-200">{creditSummary}</p>

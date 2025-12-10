@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 type StyleImage = {
@@ -28,9 +28,16 @@ const styleImages: StyleImage[] = [
 const categories = ["Women", "Men", "Kids", "Studio", "Street", "Editorial"]
 
 export default function ModelStyles() {
-  const hasImages = styleImages.length > 0
   const listRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [hiddenImageIds, setHiddenImageIds] = useState<Set<string>>(() => new Set())
+
+  const visibleImages = useMemo(
+    () => styleImages.filter((style) => !hiddenImageIds.has(style.id)),
+    [hiddenImageIds],
+  )
+
+  const hasImages = visibleImages.length > 0
 
   const scrollToIndex = useCallback((index: number) => {
     if (!listRef.current) return
@@ -41,10 +48,19 @@ export default function ModelStyles() {
     }
   }, [])
 
+  const clampIndex = useCallback(
+    (index: number) => {
+      if (visibleImages.length === 0) return 0
+      return Math.min(Math.max(index, 0), visibleImages.length - 1)
+    },
+    [visibleImages.length],
+  )
+
   const handleArrowClick = (direction: "prev" | "next") => {
+    if (visibleImages.length === 0) return
     setActiveIndex((current) => {
       const next = direction === "prev" ? current - 1 : current + 1
-      const clamped = Math.min(Math.max(next, 0), styleImages.length - 1)
+      const clamped = clampIndex(next)
       scrollToIndex(clamped)
       return clamped
     })
@@ -59,12 +75,14 @@ export default function ModelStyles() {
       if (frame) cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         const children = Array.from(container.children) as HTMLElement[]
-        const { scrollLeft } = container
+        const { scrollLeft, offsetWidth } = container
+        const viewportCenter = scrollLeft + offsetWidth / 2
         let nearestIndex = 0
         let nearestDistance = Infinity
 
         children.forEach((child, index) => {
-          const distance = Math.abs(child.offsetLeft - scrollLeft)
+          const childCenter = child.offsetLeft + child.offsetWidth / 2
+          const distance = Math.abs(childCenter - viewportCenter)
           if (distance < nearestDistance) {
             nearestDistance = distance
             nearestIndex = index
@@ -81,6 +99,69 @@ export default function ModelStyles() {
       if (frame) cancelAnimationFrame(frame)
     }
   }, [])
+
+  useEffect(() => {
+    setActiveIndex((current) => clampIndex(current))
+  }, [clampIndex])
+
+  const hideImageById = useCallback((id: string) => {
+    setHiddenImageIds((prev) => {
+      if (prev.has(id)) {
+        return prev
+      }
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleImageError = useCallback((id: string, src: string) => {
+    hideImageById(id)
+    console.warn(`[model-styles] Failed to load image ${src}; removing from carousel.`)
+  }, [hideImageById])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    let canceled = false
+
+    const verifyImages = async () => {
+      const failures = await Promise.all(
+        styleImages.map(async (style) => {
+          const tryRequest = async (init?: RequestInit) => {
+            try {
+              const response = await fetch(style.src, { cache: "no-store", ...init })
+              if (response.ok) {
+                return null
+              }
+              if (response.status === 405 && init?.method === "HEAD") {
+                return tryRequest({ method: "GET" })
+              }
+            } catch (error) {
+              console.warn(`[model-styles] Unable to verify ${style.src}`, error)
+              return style.id
+            }
+            return style.id
+          }
+
+          return tryRequest({ method: "HEAD" })
+        }),
+      )
+
+      if (canceled) return
+
+      failures.forEach((id) => {
+        if (id) {
+          hideImageById(id)
+        }
+      })
+    }
+
+    void verifyImages()
+
+    return () => {
+      canceled = true
+    }
+  }, [hideImageById])
 
   return (
     <section
@@ -111,7 +192,7 @@ export default function ModelStyles() {
                   type="button"
                   aria-label="Previous style"
                   onClick={() => handleArrowClick("prev")}
-                  disabled={activeIndex === 0}
+                  disabled={visibleImages.length === 0 || activeIndex === 0}
                   className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeft className="h-5 w-5" />
@@ -120,7 +201,7 @@ export default function ModelStyles() {
                   type="button"
                   aria-label="Next style"
                   onClick={() => handleArrowClick("next")}
-                  disabled={activeIndex === styleImages.length - 1}
+                  disabled={visibleImages.length === 0 || activeIndex === visibleImages.length - 1}
                   className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronRight className="h-5 w-5" />
@@ -135,7 +216,7 @@ export default function ModelStyles() {
                 aria-label="Model style gallery"
                 ref={listRef}
               >
-                {styleImages.map((style) => (
+                {visibleImages.map((style) => (
                   <figure key={style.id} className="flex-shrink-0 snap-center">
                     <div className="flex items-center justify-center rounded-3xl bg-black/80 p-4 shadow-sm">
                       <Image
@@ -146,6 +227,7 @@ export default function ModelStyles() {
                         className="h-auto w-auto max-h-[480px] max-w-[360px] object-contain md:max-w-[420px] lg:max-w-[520px]"
                         sizes="(max-width: 640px) 80vw, (max-width: 1024px) 45vw, 33vw"
                         priority={false}
+                        onError={() => handleImageError(style.id, style.src)}
                       />
                     </div>
                   </figure>
@@ -156,7 +238,7 @@ export default function ModelStyles() {
                   type="button"
                   aria-label="Previous style"
                   onClick={() => handleArrowClick("prev")}
-                  disabled={activeIndex === 0}
+                  disabled={visibleImages.length === 0 || activeIndex === 0}
                   className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -165,7 +247,7 @@ export default function ModelStyles() {
                   type="button"
                   aria-label="Next style"
                   onClick={() => handleArrowClick("next")}
-                  disabled={activeIndex === styleImages.length - 1}
+                  disabled={visibleImages.length === 0 || activeIndex === visibleImages.length - 1}
                   className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -173,7 +255,7 @@ export default function ModelStyles() {
               </div>
             </div>
             <div className="mt-6 flex items-center justify-center gap-2">
-              {styleImages.map((style, index) => (
+              {visibleImages.map((style, index) => (
                 <button
                   key={`dot-${style.id}`}
                   type="button"
