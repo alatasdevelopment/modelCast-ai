@@ -1,20 +1,47 @@
 import { createClient, type PostgrestError, type SupabaseClient } from "@supabase/supabase-js"
 
-import { getRequiredEnv } from "@/lib/env"
+const PUBLIC_SUPABASE_URL = (() => {
+  const value = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (!value) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.")
+  }
+  if (value.includes("<") || value.length === 0) {
+    throw new Error(
+      "Supabase environment variables are placeholders. Update NEXT_PUBLIC_SUPABASE_URL in .env.local with real project credentials.",
+    )
+  }
+  return value
+})()
 
-const SUPABASE_URL = getRequiredEnv(["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"])
-const SUPABASE_ANON_KEY = getRequiredEnv(["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"])
+const PUBLIC_SUPABASE_ANON_KEY = (() => {
+  const value = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+  if (!value) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.")
+  }
+  if (value.includes("<") || value.length === 0) {
+    throw new Error(
+      "Supabase environment variables are placeholders. Update NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local with real project credentials.",
+    )
+  }
+  return value
+})()
+
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (
-  SUPABASE_URL.includes("<") ||
-  SUPABASE_ANON_KEY.includes("<") ||
-  SUPABASE_URL.trim().length === 0 ||
-  SUPABASE_ANON_KEY.trim().length === 0
-) {
-  throw new Error(
-    "Supabase environment variables are placeholders. Update SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL and SUPABASE_ANON_KEY/NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local with real project credentials.",
-  )
+const resolveServerSupabaseUrl = () => {
+  if (typeof window !== "undefined") {
+    return PUBLIC_SUPABASE_URL
+  }
+  const serverValue = process.env.SUPABASE_URL?.trim()
+  return serverValue && serverValue.length > 0 ? serverValue : PUBLIC_SUPABASE_URL
+}
+
+const resolveServerAnonKey = () => {
+  if (typeof window !== "undefined") {
+    return PUBLIC_SUPABASE_ANON_KEY
+  }
+  const serverValue = process.env.SUPABASE_ANON_KEY?.trim()
+  return serverValue && serverValue.length > 0 ? serverValue : PUBLIC_SUPABASE_ANON_KEY
 }
 
 type SupabaseGlobal = typeof globalThis & {
@@ -25,7 +52,7 @@ const supabaseGlobal = globalThis as SupabaseGlobal
 
 export function getSupabaseClient(): SupabaseClient {
   if (typeof window === "undefined") {
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    return createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -34,7 +61,7 @@ export function getSupabaseClient(): SupabaseClient {
   }
 
   if (!supabaseGlobal.__supabaseClient) {
-    supabaseGlobal.__supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    supabaseGlobal.__supabaseClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -58,7 +85,10 @@ export function getSupabaseServerClient(req?: Request, accessToken?: string | nu
     }
   }
 
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const supabaseUrl = resolveServerSupabaseUrl()
+  const supabaseAnonKey = resolveServerAnonKey()
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers,
     },
@@ -77,7 +107,9 @@ export function getSupabaseAdminClient(): SupabaseClient {
     throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable.")
   }
 
-  return createClient(SUPABASE_URL, serviceKey, {
+  const supabaseUrl = resolveServerSupabaseUrl()
+
+  return createClient(supabaseUrl, serviceKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
