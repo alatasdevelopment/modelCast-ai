@@ -14,18 +14,11 @@ export class CloudinaryUploadError extends Error {
 const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
 const DEFAULT_UPLOAD_FOLDER = 'modelcast/uploads'
 
-type SignedUploadConfig = {
-  timestamp: number
-  signature: string
-  apiKey: string
-  cloudName: string
-  folder: string
-}
-
 const parseCloudinaryErrorMessage = (rawBody: string | null, fallback: string) => {
   if (!rawBody) return fallback
   try {
     const parsed = JSON.parse(rawBody)
+    if (typeof parsed?.error === 'string') return parsed.error
     if (typeof parsed?.error?.message === 'string') return parsed.error.message
     if (typeof parsed?.message === 'string') return parsed.message
   } catch {
@@ -40,81 +33,44 @@ const resolveFolder = (folder?: string) => {
   return trimmed || DEFAULT_UPLOAD_FOLDER
 }
 
-const requestSignedUploadConfig = async (folder?: string): Promise<SignedUploadConfig> => {
-  const normalizedFolder = resolveFolder(folder)
-  let response: Response
-  try {
-    response = await fetch('/api/upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ folder: normalizedFolder }),
-    })
-  } catch (error) {
-    throw new CloudinaryUploadError(
-      error instanceof Error ? error.message : 'Failed to reach upload signer.',
-    )
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new CloudinaryUploadError(
-      parseCloudinaryErrorMessage(errorText, 'Unable to secure Cloudinary upload.'),
-    )
-  }
-
-  let data: SignedUploadConfig
-  try {
-    data = (await response.json()) as SignedUploadConfig
-  } catch {
-    throw new CloudinaryUploadError('Invalid response from upload signer.')
-  }
-
-  if (
-    typeof data.timestamp !== 'number' ||
-    typeof data.signature !== 'string' ||
-    typeof data.apiKey !== 'string' ||
-    typeof data.cloudName !== 'string' ||
-    typeof data.folder !== 'string'
-  ) {
-    throw new CloudinaryUploadError('Incomplete upload signature returned by server.')
-  }
-
-  return data
-}
-
 export async function uploadToCloudinary(
   file: File,
   options: { folder?: string } = {},
 ): Promise<CloudinaryUploadResult> {
   const { folder } = options
-  const signedConfig = await requestSignedUploadConfig(folder)
-
-  const endpoint = `https://api.cloudinary.com/v1_1/${signedConfig.cloudName}/image/upload`
-  const formData = new FormData()
-  formData.append('file', file)
-  formData.append('api_key', signedConfig.apiKey)
-  formData.append('timestamp', String(signedConfig.timestamp))
-  formData.append('signature', signedConfig.signature)
-  formData.append('folder', signedConfig.folder)
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    body: formData,
-  })
+  const normalizedFolder = resolveFolder(folder)
+  let response: Response
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('folder', normalizedFolder)
+    response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    })
+  } catch (error) {
+    throw new CloudinaryUploadError(
+      error instanceof Error ? error.message : 'Failed to reach upload endpoint.',
+    )
+  }
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new CloudinaryUploadError(parseCloudinaryErrorMessage(errorText, 'Cloudinary upload failed.'))
+    throw new CloudinaryUploadError(parseCloudinaryErrorMessage(errorText, 'Upload failed.'))
   }
 
-  const data = await response.json()
+  const data = await response.json().catch(() => {
+    throw new CloudinaryUploadError('Invalid upload response received.')
+  })
+
+  if (typeof data?.secureUrl !== 'string' || typeof data?.publicId !== 'string') {
+    throw new CloudinaryUploadError('Upload response missing required fields.')
+  }
 
   return {
-    secureUrl: data.secure_url,
-    deleteToken: data.delete_token ?? undefined,
-    publicId: data.public_id,
+    secureUrl: data.secureUrl,
+    deleteToken: data.deleteToken ?? undefined,
+    publicId: data.publicId,
   }
 }
 
