@@ -1,21 +1,9 @@
 import { createClient, type PostgrestError, type SupabaseClient } from "@supabase/supabase-js"
 
-function requireEnvVar(value: string | undefined, message: string): string {
-  if (!value) {
-    throw new Error(message)
-  }
+import { getRequiredEnv } from "@/lib/env"
 
-  return value
-}
-
-const SUPABASE_URL = requireEnvVar(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  "Missing NEXT_PUBLIC_SUPABASE_URL environment variable.",
-)
-const SUPABASE_ANON_KEY = requireEnvVar(
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  "Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.",
-)
+const SUPABASE_URL = getRequiredEnv(["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"])
+const SUPABASE_ANON_KEY = getRequiredEnv(["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"])
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (
@@ -25,7 +13,7 @@ if (
   SUPABASE_ANON_KEY.trim().length === 0
 ) {
   throw new Error(
-    "Supabase environment variables are placeholders. Update NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local with real project credentials.",
+    "Supabase environment variables are placeholders. Update SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL and SUPABASE_ANON_KEY/NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local with real project credentials.",
   )
 }
 

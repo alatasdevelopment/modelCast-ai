@@ -8,8 +8,9 @@ import {
   getModelCandidates,
 } from "@/lib/fashn"
 import { assemblePrompt, type PromptAssemblyResult, type PromptOptions } from "@/lib/promptUtils"
-import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 import { apiResponse } from "@/lib/api-response"
+import { getRequiredEnv } from "@/lib/env"
+import { getSupabaseAdminClient, getSupabaseServerClient } from "@/lib/supabaseClient"
 
 type PlanTier = "free" | "pro" | "studio"
 
@@ -224,8 +225,8 @@ const resolveAppliedAspect = (
   return { mode: "none" }
 }
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const SUPABASE_URL = getRequiredEnv(["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"])
+const SUPABASE_ANON_KEY = getRequiredEnv(["SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"])
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const FASHN_ENABLED = process.env.FASHN_ENABLED === "true"

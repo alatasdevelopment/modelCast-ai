@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
 import { apiResponse } from '@/lib/api-response'
+import { getRequiredEnv } from '@/lib/env'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_URL = getRequiredEnv(['SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'])
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export async function POST(req: Request) {
