@@ -5,13 +5,13 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Logo } from "@/components/logo"
 import Hero from "@/components/home/hero"
-import ModelStyles from "@/components/model-styles"
 import Features from "@/components/features"
 import { EarlyAccessSection } from "@/components/early-access"
 import { FAQSection } from "@/components/faq-section"
 import { PricingSection } from "@/components/pricing-section"
 import { StickyFooter } from "@/components/sticky-footer"
 import { useSupabaseAuth } from "@/components/auth/supabase-auth-provider"
+import BeforeAfterSlider from "@/components/BeforeAfterSlider"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 export default function Home() {
@@ -20,6 +20,62 @@ export default function Home() {
   const router = useRouter()
   const { user, isLoading, signOut } = useSupabaseAuth()
   const { toast } = useToast()
+  const tagStyles: Record<string, string> = {
+    Studio: "border-sky-400/20 bg-sky-500/10 text-sky-200",
+    Outdoor: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    Street: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+    Editorial: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+  }
+  const comparisonExamples = [
+    {
+      title: "Dress",
+      beforeSrc: "/results/casual_dress_woman.png",
+      afterSrc: "/results/casual_dress.png",
+      beforeAlt: "Casual dress model reference",
+      afterAlt: "Casual dress styling result",
+      tags: ["Studio"],
+    },
+    {
+      title: "Kids Jacket",
+      beforeSrc: "/results/child_outdoor.png",
+      afterSrc: "/results/child_jacket.png",
+      beforeAlt: "Kids jacket model reference",
+      afterAlt: "Kids jacket styling result",
+      tags: ["Outdoor"],
+    },
+    {
+      title: "Jacket",
+      beforeSrc: "/results/editorial_jacket.png",
+      afterSrc: "/results/editorial_woman_jacket.png",
+      beforeAlt: "Editorial jacket model reference",
+      afterAlt: "Editorial jacket styling result",
+      tags: ["Editorial", "Studio"],
+    },
+    {
+      title: "Blazer",
+      beforeSrc: "/results/old_editorial.png",
+      afterSrc: "/results/old_man_jacket.png",
+      beforeAlt: "Heritage jacket model reference",
+      afterAlt: "Heritage jacket styling result",
+      tags: ["Editorial"],
+    },
+    {
+      title: "Rain Jacket",
+      beforeSrc: "/results/outdoor_woman.png",
+      afterSrc: "/results/outdoor_woman_raincoat.png",
+      beforeAlt: "Raincoat model reference",
+      afterAlt: "Raincoat styling result",
+      tags: ["Outdoor"],
+    },
+    {
+      title: "Overshirt",
+      beforeSrc: "/results/man_jacket_street.png",
+      afterSrc: "/results/man_jacket.png",
+      beforeAlt: "Mens jacket model reference",
+      afterAlt: "Mens jacket styling result",
+      tags: ["Street"],
+    },
+  ]
   const desktopNavActionClass =
     "inline-flex items-center justify-center rounded-full border border-white/12 bg-white/[0.04] px-4 py-1.5 text-sm font-medium text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--brand-green)] hover:bg-white/[0.1] hover:text-[var(--brand-green)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-green)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
 
@@ -329,7 +385,61 @@ export default function Home() {
 
       <Hero />
 
-      <ModelStyles />
+      <section
+        id="comparison"
+        role="region"
+        aria-labelledby="comparison-heading"
+        className="relative overflow-hidden bg-black py-16 sm:py-20 lg:py-24"
+      >
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_60%)]" />
+        <div className="container mx-auto max-w-6xl px-6">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.32em] text-lime-300/80">Before &amp; After</p>
+            <h2 id="comparison-heading" className="mt-4 text-[clamp(2rem,4vw,3.2rem)] font-semibold text-white">
+              Drag to see the transformation in real time
+            </h2>
+            <p className="mt-3 text-sm text-zinc-400">
+              Slide left/right to compare Before and After.
+            </p>
+            <p className="mt-4 text-base text-zinc-400">
+              Compare the original capture with ModelCast styling to preview lighting, pose, and wardrobe polish.
+            </p>
+          </div>
+
+          <div className="mt-10">
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-2 xl:gap-8">
+              {comparisonExamples.map((example) => (
+                <div key={example.title} className="flex w-full flex-col items-center">
+                  <div className="w-full max-w-sm">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-zinc-200">{example.title}</p>
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        {example.tags.map((tag) => (
+                          <span
+                            key={`${example.title}-${tag}`}
+                            className={`rounded-full border px-2 py-0.5 text-[0.65rem] font-medium uppercase tracking-[0.18em] ${tagStyles[tag] ?? "border-white/10 bg-white/5 text-zinc-400"}`}
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <BeforeAfterSlider
+                      beforeSrc={example.beforeSrc}
+                      afterSrc={example.afterSrc}
+                      beforeAlt={example.beforeAlt}
+                      afterAlt={example.afterAlt}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 text-center text-xs text-zinc-500">
+              Demo images for illustration. Results vary with photo quality.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <Features />
 
