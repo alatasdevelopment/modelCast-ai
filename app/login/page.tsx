@@ -125,7 +125,7 @@ export default function LoginPage() {
         >
           {showVerifyBanner ? (
             <div className="mb-6 rounded-xl border border-[#22c55e]/40 bg-[#22c55e]/10 p-4 text-sm text-lime-100">
-              Please confirm your account using the link we emailed you. Once verified, sign in with your credentials.
+              Confirm your account via the email we sent, then sign in. Check spam if you don’t see it.
             </div>
           ) : null}
           <form onSubmit={handleSubmit} className="space-y-6">

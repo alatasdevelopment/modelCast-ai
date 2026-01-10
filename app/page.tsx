@@ -389,7 +389,7 @@ export default function Home() {
         id="comparison"
         role="region"
         aria-labelledby="comparison-heading"
-        className="relative overflow-hidden bg-black py-16 sm:py-20 lg:py-24"
+        className="relative overflow-hidden bg-black pb-16 pt-10 sm:pb-20 sm:pt-12 lg:pb-24 lg:pt-14"
       >
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_60%)]" />
         <div className="container mx-auto max-w-6xl px-6">

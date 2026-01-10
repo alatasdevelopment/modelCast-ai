@@ -75,6 +75,7 @@ export default function BeforeAfterSlider({
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (hasError) return
       isDraggingRef.current = true
+      event.preventDefault()
       event.currentTarget.setPointerCapture(event.pointerId)
       updateFromClientX(event.clientX)
     },
@@ -118,7 +119,7 @@ export default function BeforeAfterSlider({
     <div className="w-full">
       <div
         ref={containerRef}
-        className="relative w-full overflow-hidden rounded-3xl border border-white/10 bg-black/70 shadow-[0_24px_60px_rgba(0,0,0,0.55)] touch-pan-y"
+        className="relative w-full select-none overflow-hidden rounded-3xl border border-white/10 bg-black/70 shadow-[0_24px_60px_rgba(0,0,0,0.55)] touch-pan-y"
         style={{ aspectRatio }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -138,8 +139,9 @@ export default function BeforeAfterSlider({
                 src={beforeSrc}
                 alt={beforeAlt}
                 fill
-                className="object-cover"
+                className="object-cover select-none"
                 sizes="(max-width: 768px) 90vw, 520px"
+                draggable={false}
                 onError={handleImageError}
               />
             </div>
@@ -151,8 +153,9 @@ export default function BeforeAfterSlider({
                 src={afterSrc}
                 alt={afterAlt}
                 fill
-                className="object-cover"
+                className="object-cover select-none"
                 sizes="(max-width: 768px) 90vw, 520px"
+                draggable={false}
                 onError={handleImageError}
               />
             </div>

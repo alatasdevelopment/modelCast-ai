@@ -23,7 +23,7 @@ export default function Hero() {
       id="hero"
       role="banner"
       aria-labelledby="hero-heading"
-      className="relative overflow-hidden bg-black py-10 text-center sm:py-14 md:py-20"
+      className="relative overflow-hidden bg-black py-12 text-center sm:py-16 md:py-24"
     >
       <div className="absolute inset-0 -z-10 overflow-hidden">
         <motion.div
@@ -46,7 +46,7 @@ export default function Hero() {
           variants={heroVariants}
           initial="hidden"
           animate="visible"
-          className="mb-3 text-xs uppercase tracking-[0.32em] text-lime-400/80 md:text-sm"
+          className="mb-4 text-xs uppercase tracking-[0.32em] text-lime-400/80 md:text-sm"
         >
           AI-Powered Visuals for Fashion Creators
         </motion.p>
@@ -58,7 +58,7 @@ export default function Hero() {
           initial="hidden"
           animate="visible"
           className={cn(
-            "mb-5 text-5xl font-black leading-[1.1] text-white md:text-6xl",
+            "mb-6 text-5xl font-black leading-[1.1] text-white md:text-6xl",
             "bg-gradient-to-r from-lime-300 via-white to-lime-200 bg-clip-text text-transparent",
             geist.className,
           )}
@@ -71,7 +71,7 @@ export default function Hero() {
           variants={heroVariants}
           initial="hidden"
           animate="visible"
-          className="mb-7 max-w-2xl text-base text-gray-400 sm:text-lg"
+          className="mb-9 max-w-2xl text-base text-gray-400 sm:text-lg"
         >
           Turn simple product images into studio-grade model visuals — no photoshoots, no models, no limits. Free to
           try.
@@ -82,13 +82,13 @@ export default function Hero() {
           initial={{ opacity: 0, y: 24, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.6, delay: 0.35, ease: "easeOut" }}
-          className="mb-3 flex flex-wrap justify-center gap-4"
+          className="mb-5 flex flex-wrap justify-center gap-4"
         >
           <Link href="/signup" prefetch={false}>
             <Button
               variant="lime"
               size="lg"
-              className="btn-lime group relative overflow-hidden rounded-full px-8 py-3 text-base font-semibold transition-transform duration-300 hover:scale-[1.03]"
+              className="btn-lime group relative overflow-hidden rounded-full px-9 py-3.5 text-base font-semibold transition-transform duration-300 hover:scale-[1.03]"
               aria-label="Start generating AI model photos"
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -99,7 +99,7 @@ export default function Hero() {
           </Link>
           <Button
             variant="ghost"
-            className="px-6 text-base font-semibold text-gray-300 transition-colors duration-200 hover:text-white"
+            className="px-7 py-3 text-base font-semibold text-gray-300 transition-colors duration-200 hover:text-white"
             asChild
           >
             <Link href="#how-it-works" prefetch={false} aria-label="View how ModelCast works">
@@ -113,7 +113,7 @@ export default function Hero() {
           variants={heroVariants}
           initial="hidden"
           animate="visible"
-          className="text-sm text-zinc-400"
+          className="mt-1 text-sm text-zinc-400"
         >
           Learn more in our{" "}
           <Link href="#faq" prefetch={false} className="text-lime-300 underline-offset-4 hover:underline">
@@ -126,7 +126,7 @@ export default function Hero() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.45, ease: "easeOut" }}
-          className="text-xs font-medium uppercase tracking-[0.32em] text-zinc-500"
+          className="mt-4 text-xs font-medium uppercase tracking-[0.32em] text-zinc-500"
         >
           Trusted by early fashion creators worldwide
         </motion.p>
