@@ -29,7 +29,10 @@ const softwareApplicationSchema = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://modelcast.fit"),
-  title: "ModelCast – AI Fashion Model Generator",
+  title: {
+    default: "ModelCast – AI Fashion Model Generator",
+    template: "%s | ModelCast",
+  },
   description:
     "Generate professional model photos for your fashion products instantly with AI. No photoshoots, no hassle — just upload your product image and get HD model visuals in seconds.",
   keywords: [
@@ -48,7 +51,7 @@ export const metadata: Metadata = {
     siteName: "ModelCast",
     images: [
       {
-        url: "/og-preview.png",
+        url: "/opengraph-image",
         width: 1200,
         height: 630,
         alt: "ModelCast AI generated model image preview",
@@ -63,10 +66,14 @@ export const metadata: Metadata = {
     title: "ModelCast – AI Model Generator",
     description:
       "AI tool to generate professional model photos for your products. Try free with 2 credits.",
-    images: ["/og-preview.png"],
+    images: ["/twitter-image"],
   },
   alternates: {
     canonical: "https://modelcast.fit",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 }
 
